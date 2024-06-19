@@ -7,9 +7,9 @@ import argparse
 def get_args_parser(dataset_name):
     parser = argparse.ArgumentParser('AD dataset json generation', add_help=False)
     parser.add_argument('--dataset_dir', type=str, help='path to dataset dir',
-                        default='/home/medical/Anomaly_Project/InCTRL')
+                        default='/home/medical/Anomaly_Project/InCTRL/data')
     parser.add_argument('--output_dir', type=str, help='path to output dir',
-                        default='/home/medical/Anomaly_Project/CutPaste/AD_json_train_22222/')
+                        default='/home/medical/Anomaly_Project/InCTRL/AD_json_train/')
     parser.add_argument('--dataset_name', type=str, help='dataset name',
                         default=dataset_name)
     return parser.parse_args()
@@ -82,11 +82,11 @@ def save_list_to_file(my_list, file_path):
 if __name__ == "__main__":
     lst = []
     directories = [
-                   "/home/medical/Anomaly_Project/InCTRL/mvtec_anomaly_detection/",
+                #    "/home/medical/Anomaly_Project/InCTRL/mvtec_anomaly_detection/",
                 #  "/home/medical/Anomaly_Project/InCTRL/AITEX_anomaly_detection/",               # will be used for validation (disjoint from training dataset)
                 #  "/home/medical/Anomaly_Project/InCTRL/elpv_anomaly_detection/",
                 #  "/home/medical/Anomaly_Project/InCTRL/SDD_anomaly_detection/",
-                #  "/home/medical/Anomaly_Project/InCTRL/visa_anomaly_detection/"                  # -> path updated, so need to create json again
+                 "/home/medical/Anomaly_Project/InCTRL/data/visa_anomaly_detection/"                  # -> path updated, so need to create json again
                 ]
     objects_path = []
     for directory in directories:
@@ -97,5 +97,5 @@ if __name__ == "__main__":
     for obj_path in objects_path:
         lst.append(main(obj_path.split('/')[-2], obj_path.split('/')[-1]))
     
-    file_path = "/home/medical/Anomaly_Project/InCTRL/train_object_list.pkl"
+    file_path = "/home/medical/Anomaly_Project/InCTRL/data/train_object_list.pkl"
     save_list_to_file(lst, file_path)

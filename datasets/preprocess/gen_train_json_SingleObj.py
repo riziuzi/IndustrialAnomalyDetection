@@ -48,7 +48,7 @@ def save_list_to_file(my_list, file_path):
         pickle.dump(my_list, file)
 
 if __name__ == "__main__":
-    normal_path = "/home/medical/Anomaly_Project/InCTRL/visa_anomaly_detection/pcb2/train/good/"
+    normal_path = "/home/medical/Anomaly_Project/InCTRL/data/visa_anomaly_detection/pcb2/train/good/"
     # normal_path = "/home/medical/Anomaly_Project/InCTRL/mvtec_anomaly_detection/bottle/train/good/"
     # anomaly_path = "/home/medical/Anomaly_Project/pytorch-cutpaste/AD_json_train_CutPaste/"
     anomaly_path = "/home/medical/Anomaly_Project/pytorch-cutpaste/AD_json_train_CutPaste/visa_pcb2/"

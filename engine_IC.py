@@ -160,7 +160,8 @@ def train(cfg):
         device = torch.cuda.current_device()
 
     # Build the model and print model statistics.
-    cf = './open_clip/model_configs/ViT-B-16-plus-240.json'
+    # cf = './open_clip/model_configs/ViT-B-16-plus-240.json'
+    cf = '/home/medical/Anomaly_Project/InCTRL/open_clip/model_configs/ViT-B-16-plus-240.json'
     with open(cf, 'r') as f:
         model_cfg = json.load(f)
     embed_dim = model_cfg["embed_dim"]
