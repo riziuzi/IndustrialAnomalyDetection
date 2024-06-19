@@ -1,0 +1,21 @@
+data
+text_outputs
+delete.ipynb
+delete.py
+TEMPcheckpoints
+TEMP2checkpoints
+ORIGINALcheckpoints
+AD_json
+AD_json_train
+__pycache__
+Trained_ORIGINALcheckpoints
+runs
+tmp
+
+
+## I dont know if below ones are going to be useful or not in the directory of datasets
+
+aitex
+elpv
+sdd
+visa
