@@ -12,7 +12,7 @@ def get_args_parser(objects_name):
     parser.add_argument('--output_dir', type=str, help='path to output dir',
                         default='./AD_json/')
     parser.add_argument('--dataset_name', type=str, help='dataset name',
-                        default='bottle')
+                        default='brainmri')
     parser.add_argument('--list_dataset_name', type=list, default=objects_name)
     return parser.parse_args()
 
@@ -63,11 +63,12 @@ def list_objects(args):
 
 if __name__ == "__main__":
     directories = [
-              "/home/medical/Anomaly_Project/InCTRL/mvtec_anomaly_detection/",
+            #   "/home/medical/Anomaly_Project/InCTRL/mvtec_anomaly_detection/",
+            #   "/home/medical/Anomaly_Project/InCTRL/data/BrainMRI_anomaly_detection/",
                 #    "/home/medical/Anomaly_Project/InCTRL/AITEX_anomaly_detection/",
                 #    "/home/medical/Anomaly_Project/InCTRL/elpv_anomaly_detection/",
                 #    "/home/medical/Anomaly_Project/InCTRL/SDD_anomaly_detection/",
-                #    "/home/medical/Anomaly_Project/InCTRL/visa_anomaly_detection/"                 # -> path updated, so need to create json again
+                   "/home/medical/Anomaly_Project/InCTRL/data/visa_anomaly_detection/"                 # -> path updated, so need to create json again
     ]
     for directory in directories:
         objects_name = []
@@ -78,9 +79,9 @@ if __name__ == "__main__":
         if(args.list_dataset_name):
             print("List of objects to be considered : ", args.list_dataset_name)
             for obj in args.list_dataset_name:
-                if(obj=='bottle'):
-                    args.dataset_name = obj
-                    list_objects(args)
+                # if(obj=='brainmri'):
+                args.dataset_name = obj
+                list_objects(args)
         else:
             print("Object must be given in list !")
 

@@ -1,0 +1,9 @@
+shot number is : 8
+/home/medical/Anomaly_Project/InCTRL/AD_json/brainmri/
+Object is :  brainmri
+Predict test set: 
+AUC-ROC: 0.9133, AUC-PR: 0.9858
+/home/medical/Anomaly_Project/InCTRL/AD_json/headct/
+Object is :  headct
+Predict test set: 
+AUC-ROC: 0.9336, AUC-PR: 0.9811

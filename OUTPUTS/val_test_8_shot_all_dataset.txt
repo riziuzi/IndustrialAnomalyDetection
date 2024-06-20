@@ -1,0 +1,3 @@
+[06/06 20:46:53][INFO] checkpoint.py: 153: Loading network weights from /home/medical/Anomaly_Project/InCTRL/checkpoints/checkpoints/8/checkpoint.pyth.
+Predict test set: 
+AUC-ROC: 0.7157, AUC-PR: 0.6945

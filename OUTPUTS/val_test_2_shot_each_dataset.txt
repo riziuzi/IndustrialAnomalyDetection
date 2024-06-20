@@ -1,0 +1,20 @@
+./AD_json/
+[06/07 00:12:00][INFO] checkpoint.py: 153: Loading network weights from /home/medical/Anomaly_Project/InCTRL/checkpoints/checkpoints/2/checkpoint.pyth.
+Predict test set: 
+AUC-ROC: 0.9266, AUC-PR: 0.9702
+/home/medical/Anomaly_Project/InCTRL/AD_json/aitex/
+[06/07 01:34:18][INFO] checkpoint.py: 153: Loading network weights from /home/medical/Anomaly_Project/InCTRL/checkpoints/checkpoints/2/checkpoint.pyth.
+Predict test set: 
+AUC-ROC: 0.6979, AUC-PR: 0.4877
+/home/medical/Anomaly_Project/InCTRL/AD_json/elpv/
+[06/07 02:12:04][INFO] checkpoint.py: 153: Loading network weights from /home/medical/Anomaly_Project/InCTRL/checkpoints/checkpoints/2/checkpoint.pyth.
+Predict test set: 
+AUC-ROC: 0.7270, AUC-PR: 0.8074
+/home/medical/Anomaly_Project/InCTRL/AD_json/sdd/
+[06/07 02:45:05][INFO] checkpoint.py: 153: Loading network weights from /home/medical/Anomaly_Project/InCTRL/checkpoints/checkpoints/2/checkpoint.pyth.
+Predict test set: 
+AUC-ROC: 0.5982, AUC-PR: 0.2220
+/home/medical/Anomaly_Project/InCTRL/AD_json/visa/
+[06/07 02:53:55][INFO] checkpoint.py: 153: Loading network weights from /home/medical/Anomaly_Project/InCTRL/checkpoints/checkpoints/2/checkpoint.pyth.
+Predict test set: 
+AUC-ROC: 0.5670, AUC-PR: 0.5813

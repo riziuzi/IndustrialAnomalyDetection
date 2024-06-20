@@ -1,0 +1,5 @@
+/home/medical/Anomaly_Project/InCTRL/AD_json/sdd/
+Object is :  SDD
+[06/07 18:34:37][INFO] checkpoint.py: 153: Loading network weights from /home/medical/Anomaly_Project/InCTRL/checkpoints/checkpoints/8/checkpoint.pyth.
+Predict test set: 
+AUC-ROC: 0.9672, AUC-PR: 0.8944

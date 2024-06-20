@@ -1,0 +1,47 @@
+shot number is : 8
+/home/medical/Anomaly_Project/InCTRL/AD_json/visa/
+Object is :  cashew
+Predict test set: 
+AUC-ROC: 0.9624, AUC-PR: 0.9820
+Object is :  pcb2
+Predict test set: 
+AUC-ROC: 0.5972, AUC-PR: 0.6103
+Object is :  pcb3
+Predict test set: 
+AUC-ROC: 0.7326, AUC-PR: 0.7227
+Object is :  capsules
+Predict test set: 
+AUC-ROC: 0.7477, AUC-PR: 0.8352
+Object is :  pcb1
+Predict test set: 
+AUC-ROC: 0.9602, AUC-PR: 0.9589
+Object is :  fryum
+Predict test set: 
+AUC-ROC: 0.9252, AUC-PR: 0.9638
+Object is :  candle
+Predict test set: 
+AUC-ROC: 0.9047, AUC-PR: 0.9052
+Object is :  macaroni1
+Predict test set: 
+AUC-ROC: 0.6996, AUC-PR: 0.7133
+Object is :  macaroni2
+Predict test set: 
+AUC-ROC: 0.6997, AUC-PR: 0.7283
+Object is :  pcb4
+Predict test set: 
+AUC-ROC: 0.9382, AUC-PR: 0.9466
+Object is :  chewinggum
+Predict test set: 
+AUC-ROC: 0.9732, AUC-PR: 0.9865
+/home/medical/Anomaly_Project/InCTRL/AD_json/sdd/
+Object is :  SDD
+Predict test set: 
+AUC-ROC: 0.9672, AUC-PR: 0.8944
+/home/medical/Anomaly_Project/InCTRL/AD_json/elpv/
+Object is :  elpv
+Predict test set: 
+AUC-ROC: 0.8627, AUC-PR: 0.9179
+/home/medical/Anomaly_Project/InCTRL/AD_json/aitex/
+Object is :  AITEX
+Predict test set: 
+AUC-ROC: 0.7822, AUC-PR: 0.5668

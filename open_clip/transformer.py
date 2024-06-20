@@ -754,7 +754,7 @@ class VisionTransformer_Mul(nn.Module):
         else:
             return x[:, 0], x
 
-    def forward(self, x: torch.Tensor, out_layers: list):
+    def forward(self, x: torch.Tensor, out_layers: list):                           # x (for query image)-> (32, 3, 240, 240); out_layers -> [7, 9, 11]
 
         # to patches - whether to use dual patchnorm - https://arxiv.org/abs/2302.01327v1
         if self.input_patchnorm:
@@ -766,47 +766,47 @@ class VisionTransformer_Mul(nn.Module):
             x = self.patchnorm_pre_ln(x)
             x = self.conv1(x)
         else:
-            x = self.conv1(x)  # shape = [*, width, grid, grid]
-            x = x.reshape(x.shape[0], x.shape[1], -1)  # shape = [*, width, grid ** 2]
-            x = x.permute(0, 2, 1)  # shape = [*, grid ** 2, width]
+            x = self.conv1(x)  # shape = [*, width, grid, grid]                                 # x -> (32, 896, 15, 15)
+            x = x.reshape(x.shape[0], x.shape[1], -1)  # shape = [*, width, grid ** 2]          # x -> (32, 896, 15*15=225)
+            x = x.permute(0, 2, 1)  # shape = [*, grid ** 2, width]                             # x -> (32, 225, 896)
 
         # class embeddings and positional embeddings
-        x = torch.cat(
+        x = torch.cat(                                                                          # x -> (32, 225+1=226, 896); -> This line is concatenating a "class token" to the beginning of the input tensor x
             [self.class_embedding.to(x.dtype) + torch.zeros(x.shape[0], 1, x.shape[-1], dtype=x.dtype, device=x.device),
              x], dim=1)  # shape = [*, grid ** 2 + 1, width]
-        x = x + self.positional_embedding.to(x.dtype)
+        x = x + self.positional_embedding.to(x.dtype)                                           # x -> (32, 225+1=226, 896); -> x contains both the token and positional information
 
         # a patch_dropout of 0. would mean it is disabled and this function would do nothing but return what was passed in
         x = self.patch_dropout(x)
-        x = self.ln_pre(x)
+        x = self.ln_pre(x)                                                                      # layerNormalization => x -> (32, 226, 896)
 
-        x = x.permute(1, 0, 2)  # NLD -> LND
+        x = x.permute(1, 0, 2)  # NLD -> LND                                                    # x -> (226, 32, 896)
         # x = self.transformer(x)
-        x, attn, patch_tokens = self.transformer(x, out_layers)
+        x, attn, patch_tokens = self.transformer(x, out_layers)                                 # x -> (226, 32, 896) ; attn -> (1, 226, 226); patch_tokens -> (3, 226, 32, 896)
         # attn = attn[0, 0, 1:].view(14, 14)  # 49
-        B, C, L = attn[0].shape
-        H = int(np.sqrt(L - 1))
-        out_attn = torch.zeros([H, H]).to('cuda')
-        for i in range(len(attn)):
+        B, C, L = attn[0].shape                                                                 # B=32; C=226; L=226
+        H = int(np.sqrt(L - 1))                                                                 # H=15
+        out_attn = torch.zeros([H, H]).to('cuda')                                               # out_attn -> (15, 15)
+        for i in range(len(attn)):                                                              # out_attn -> (15, 15) -> ????
             out_attn += attn[i][0, 0, 1:].view(H, H)
 
-        x = x.permute(1, 0, 2)  # LND -> NLD
-        Fp = x
-        patch_tokens = [patch_tokens[t].permute(1, 0, 2) for t in range(len(patch_tokens))]  # LND -> NLD
+        x = x.permute(1, 0, 2)  # LND -> NLD                                                    # x -> (32, 226, 896)
+        Fp = x                                                                                  # Fp -> (32, 226, 896) -> last layer Final Patches map
+        patch_tokens = [patch_tokens[t].permute(1, 0, 2) for t in range(len(patch_tokens))]  # LND -> NLD       # patch_tokens -> (3, 32, 226, 896)
 
         if self.attn_pool is not None:
             x = self.attn_pool(x)
             x = self.ln_post(x)
             pooled, tokens = self._global_pool(x)
         else:
-            pooled, tokens = self._global_pool(x)
-            pooled = self.ln_post(pooled)
+            pooled, tokens = self._global_pool(x)                                               # pooled -> (32, 896)
+            pooled = self.ln_post(pooled)                                                       # pooled -> (32, 896)
 
-        if self.proj is not None:
-            pooled = pooled @ self.proj
+        if self.proj is not None:                                                               # proj -> (896, 640)
+            pooled = pooled @ self.proj                                                         # pooled -> (32, 640)
 
         if self.output_tokens:
-            return pooled, patch_tokens, Fp
+            return pooled, patch_tokens, Fp                                                     # pooled -> (32, 640); patch_tokens -> (3, 32, 226, 896); Fp -> (32, 226, 896)
 
         return pooled
 

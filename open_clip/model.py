@@ -8,6 +8,8 @@ import math
 from typing import Optional, Tuple, Union
 from collections import OrderedDict
 import re
+import os
+import sys
 from sklearn.metrics import pairwise
 
 import numpy as np
@@ -27,6 +29,10 @@ from .timm_model import TimmModel
 from .transformer import LayerNormFp32, LayerNorm, QuickGELU, Attention, VisionTransformer, TextTransformer, VisionTransformer_Mul
 from .new_utils import to_2tuple
 
+import seaborn as sns
+import matplotlib.pyplot as plt
+import warnings
+import torchvision.utils as vutils
 from .vp import (
     PadPrompter,
     RandomPatchPrompter,
@@ -40,6 +46,37 @@ PROMPT_TYPES = {
     "random_patch": RandomPatchPrompter,
     "fixed_patch": FixedPatchPrompter
 }
+warnings.filterwarnings( "ignore", module = "matplotlib\..*" )
+
+# Disable
+def blockPrint():
+    sys.stdout = open(os.devnull, 'w')
+
+# Restore
+def enablePrint():
+    sys.stdout = sys.__stdout__
+
+def save_images_and_patches(img, patch_ref_map, num_images=8):
+    indices = torch.randperm(img.size(0))[:num_images]
+
+    selected_images = img[indices]
+    grid_img = vutils.make_grid(selected_images, nrow=8, padding=2, normalize=True)
+    plt.figure(figsize=(20, 5))
+    plt.imshow(grid_img.permute(1, 2, 0).cpu())
+    plt.axis('off')
+    plt.title('Randomly Selected Query Images')
+    plt.savefig('selected_query_images.png')
+    plt.close()
+
+    selected_patch_maps = patch_ref_map[indices].cpu().numpy()
+    fig, axes = plt.subplots(2, 4, figsize=(20, 5)) 
+    for i, ax in enumerate(axes.flat):
+        if i < len(selected_patch_maps):
+            sns.heatmap(selected_patch_maps[i].reshape(15, 15), ax=ax, cbar=False, cmap='viridis') 
+        ax.axis('off')
+    fig.suptitle('Corresponding Patch Reference Maps')
+    plt.savefig('patch_reference_maps.png')
+    plt.close()
 
 
 @dataclass
@@ -475,7 +512,7 @@ class InCTRL(nn.Module):
         for p in text.parameters():
             p.requires_grad = False
 
-    def encode_image(self, image, out_layers: list = [7, 9, 11], normalize: bool = False):
+    def encode_image(self, image, out_layers: list = [7, 9, 11], normalize: bool = False):      # image -> (32, 3, 240, 240); normalize=false
         features = self.visual.forward(image, out_layers)
         return F.normalize(features, dim=-1) if normalize else features
 
@@ -492,9 +529,37 @@ class InCTRL(nn.Module):
         x = x[torch.arange(x.shape[0]), text.argmax(dim=-1)] @ self.text_projection
         return F.normalize(x, dim=-1) if normalize else x
 
+    def peek_localization(self, array_1d, image_tensor):
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            array_2d = array_1d.cpu().numpy().reshape((15, 15))
+            
+            greater_than_point_one = array_2d[array_2d > 0.2]
+            if greater_than_point_one.size > 0:
+                avg_greater_than_point_one = np.mean(greater_than_point_one)
+            else:
+                avg_greater_than_point_one = 0
+
+            plt.figure(figsize=(10, 8))
+            sns.heatmap(array_2d, annot=True, fmt=".2f", cmap="YlGnBu", cbar=False,vmin=0, vmax=1)
+            plt.title(f"15x15 Heatmap of Values (Avg > 0.2: {avg_greater_than_point_one:.2f})")
+            plt.xlabel("Column")
+            plt.ylabel("Row")
+            plt.savefig("heatmap.png", dpi=300, bbox_inches='tight')
+            plt.close()
+
+            plt.figure(figsize=(10, 10))
+            image_np = image_tensor.cpu().numpy().transpose(1, 2, 0)  # Transpose to HWC format
+            plt.imshow(image_np)
+            plt.title("Corresponding Image")
+            plt.axis('off')
+            plt.savefig("corresponding_image.png", dpi=300, bbox_inches='tight')
+            plt.close()
+
+
     def forward(self, tokenizer, image: Optional[torch.Tensor] = None, text: Optional[torch.Tensor] = None, normal_list = None):
         if normal_list == None:
-            img = image[0].cuda(non_blocking=True)                                              # image -> (8,32,3,240,240) ; img -> (32,3,240,240)
+            img = image[0].cuda(non_blocking=True)                                              # image -> (9,32,3,240,240) ; img -> (32,3,240,240)
             normal_image = image[1:]                                                    
             normal_image = torch.stack(normal_image)                                            # normal_image -> (8,32,3,240,240)
             shot, b, _, _, _ = normal_image.shape                                               # shot = 8 ; b = 32
@@ -509,8 +574,8 @@ class InCTRL(nn.Module):
             shot, _, _, _, _ = normal_image.shape
             normal_image = normal_image.reshape(-1, 3, 240, 240).cuda(non_blocking=True)
 
-        token, Fp_list, Fp = self.encode_image(img, normalize=False)                            # token, Fp_list, Fp -> (32,640), (3, 32, 226, 896), (32, 226, 896)
-        token_n, Fp_list_n, Fp_n = self.encode_image(normal_image, normalize=False)             # token_n, Fp_list_n, Fp_n -> (256,640), (3,8*32=256,226,896), (8*32=256, 226, 896)
+        token, Fp_list, Fp = self.encode_image(img, normalize=False)                            # token, Fp_list, Fp -> (32,640), (3, 32, 226, 896), (32, 226, 896) -> Fp not used ? (12th layer)
+        token_n, Fp_list_n, Fp_n = self.encode_image(normal_image, normalize=False)             # token_n, Fp_list_n, Fp_n -> (256,640), (3,8*32=256,226,896), (8*32=256, 226, 896) -> Fp_n not used ? (12th layer)
 
         Fp_list = torch.stack(Fp_list)                                                          # Fp_list -> (3, 32, 226, 896)
         Fp_list_n = torch.stack(Fp_list_n)                                                      # Fp_list_n ->  (3,8*32=256,226,896)
@@ -536,7 +601,7 @@ class InCTRL(nn.Module):
             Fp_n = Fp_list_n[i, :, :, :]                                                        # Fp_n -> (3, 225*8=1800, 896)
 
             Fp_map = list()                                                                     
-            for j in range(len(Fp)):
+            for j in range(len(Fp)):                                        # 3 iterations
                 tmp_x = Fp[j, :, :]                                                             # tmp_x -> (225, 896)
                 tmp_n = Fp_n[j, :, :]                                                           # tmp_n -> (1800, 896)
                 am_fp = list()                                                                  
@@ -550,10 +615,14 @@ class InCTRL(nn.Module):
                 am_fp = torch.stack(am_fp)                                                      # am_fp -> (225,1)
                 Fp_map.append(am_fp)                                                            # Fp_map (finally) -> (3, 225, 1)
             Fp_map = torch.stack(Fp_map)                                                        # Fp_map -> (3, 225, 1)
-            Fp_map = torch.mean(Fp_map.squeeze(2), dim=0)                                       # Fp_map -> (225)
+            Fp_map = torch.mean(Fp_map.squeeze(2), dim=0)                                      # Fp_map -> (225)
+            # blockPrint()
+            self.peek_localization(Fp_map, img[i])
+            # enablePrint()
             patch_ref_map.append(Fp_map)                                                        # patch_ref_map (finally) -> (32, 225) ?
             score = Fp_map.max(dim=0).values                                                    # score -> (1) (like: 0.1792)
             max_diff_score.append(score)                                                        # max_diff_score (finally) -> (32, 1) ?
+            # print("score: ",score)
 
             # zero shot
             image_feature = token[i]                                                            # image_feature -> (640)
@@ -580,6 +649,7 @@ class InCTRL(nn.Module):
         text_score = torch.stack(text_score).unsqueeze(1)                                       # text_score -> (32,1)      
         img_ref_score = self.diff_head_ref.forward(token_ref)                                   # img_ref_score -> (32, 1)
         patch_ref_map = torch.stack(patch_ref_map)                                              # patch_ref_map -> (32, 225)
+        # save_images_and_patches(img, patch_ref_map)
         holistic_map = text_score + img_ref_score + patch_ref_map                               # holistic_map -> (32, 225)
         hl_score = self.diff_head.forward(holistic_map)                                         # hl_score -> (32, 1)
 
@@ -588,7 +658,7 @@ class InCTRL(nn.Module):
         final_score = (hl_score + fg_score) / 2                                                 # final_score -> (32)
 
         img_ref_score = img_ref_score.squeeze(1)                                                # img_ref_score -> (32)
-
+        # print(f"final_score: {final_score}, img_ref_score: {img_ref_score}")
         return final_score, img_ref_score
 
 class CustomTextCLIP(nn.Module):

@@ -25,12 +25,21 @@ from PIL import Image
 from tqdm import tqdm
 import progressbar
 from image_display import display_image
+import seaborn as sns
 
 logger = logging.get_logger(__name__)
 
 def _convert_to_rgb(image):
     return image.convert('RGB')
+def peek_image(image_tensor):
 
+        plt.figure(figsize=(10, 10))
+        image_np = image_tensor.cpu().numpy().transpose(1, 2, 0)  # Transpose to HWC format
+        plt.imshow(image_np)
+        plt.title("Corresponding Image")
+        plt.axis('off')
+        plt.savefig("corresponding_image.png", dpi=300, bbox_inches='tight')
+        plt.close()
 @torch.no_grad()
 def eval_epoch(val_loader, model, cfg, tokenizer, normal_list, mode=None):
     """
@@ -53,20 +62,33 @@ def eval_epoch(val_loader, model, cfg, tokenizer, normal_list, mode=None):
     progress_bar = progressbar.ProgressBar(max_value=total_iterations, prefix="Validation")
     for cur_iter, (inputs, types, labels) in enumerate(val_loader):
         # print("Validation iteration : ", cur_iter, f"/{len(val_loader)}")
+        # if cur_iter<=-1: continue
         if cfg.NUM_GPUS:
             labels = labels.cuda()
-
+        # peek_image(inputs[0][-2])
+        # peek_image(inputs[0][0])
+        # inputs[0] = inputs[0].flip(0)
+        # peek_image(inputs[0][-2])
+        # peek_image(inputs[0][0])
+        # labels.flip(0)
         preds, _ = model(tokenizer, inputs, types, normal_list)
 
         total_pred = torch.cat((total_pred, preds), 0)
         total_label = torch.cat((total_label, labels), 0)
-        progress_bar.update(cur_iter + 1)
+        # progress_bar.update(cur_iter + 1)
 
-    total_pred = total_pred.cpu().numpy()  #.squeeze()
-    total_label = total_label.cpu().numpy()
+        total_pred = total_pred.cpu().numpy() 
+        total_label = total_label.cpu().numpy()
 
-    print("Predict " + mode + " set: ")
-    total_roc, total_pr = aucPerformance(total_pred, total_label)
+        print("Predict " + mode + " set: ")
+        try:
+            total_roc, total_pr = aucPerformance(total_pred, total_label)
+        except:
+            pass
+        total_pred = torch.tensor(total_pred).cuda()
+        total_label = torch.tensor(total_label).cuda()
+    # break
+
 
     return total_roc
 

@@ -16,7 +16,7 @@ from engine_test import test
 from open_clip.utils.misc import launch_job
 import open_clip.utils.checkpoint as cu
 from open_clip.config.defaults import assert_and_infer_cfg, get_cfg
-shot_number = 2
+shot_number = 8
 
 
 def parse_args(val_normal_json,val_outlier_json,dir_path, obj, fs_samples):
@@ -190,7 +190,9 @@ if __name__ == "__main__":
     print("shot number is :", shot_number)
     dir_paths = {                                                                                                              # check
                 # "./AD_json/" : "",
-                 "/home/medical/Anomaly_Project/InCTRL/AD_json/visa/" : "/home/medical/Anomaly_Project/InCTRL/visa/",
+                #  "/home/medical/Anomaly_Project/InCTRL/AD_json/visa/" : "/home/medical/Anomaly_Project/InCTRL/data/fs_samples/visa/",
+                 "/home/medical/Anomaly_Project/InCTRL/AD_json/brainmri/" : "/home/medical/Anomaly_Project/InCTRL/data/fs_samples/BrainMRI/",
+                #  "/home/medical/Anomaly_Project/InCTRL/AD_json/headct/" : "/home/medical/Anomaly_Project/InCTRL/data/fs_samples/HeadCT/",
                 #  "/home/medical/Anomaly_Project/InCTRL/AD_json/sdd/" : "/home/medical/Anomaly_Project/InCTRL/SDD/SDD/",
                 #  "/home/medical/Anomaly_Project/InCTRL/AD_json/elpv/" : "/home/medical/Anomaly_Project/InCTRL/elpv",
                 #  "/home/medical/Anomaly_Project/InCTRL/AD_json/aitex/": "/home/medical/Anomaly_Project/InCTRL/AITEX"

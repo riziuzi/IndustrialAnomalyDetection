@@ -5,7 +5,7 @@ import shutil
 import argparse
 
 parser = argparse.ArgumentParser()
-parser.add_argument('--dataset_root', type=str, help="dataset root")
+parser.add_argument('--dataset_root',default="/home/medical/Anomaly_Project/InCTRL/delete/headct", type=str, help="dataset root")
 args = parser.parse_args()
 
 label_file = os.path.join(args.dataset_root, 'labels.csv')
@@ -20,7 +20,7 @@ outlier_fnames = fnames[label==1]
 
 normal_train, normal_test, _, _ = train_test_split(normal_fnames, normal_fnames, test_size=0.25, random_state=42)
 
-target_root = './HeadCT_anomaly_detection/headct'
+target_root = '/home/medical/Anomaly_Project/InCTRL/data/HeadCT_anomaly_detection/headct'
 train_root = os.path.join(target_root, 'train/good')
 if not os.path.exists(train_root):
     os.makedirs(train_root)

@@ -4,7 +4,7 @@ import shutil
 import argparse
 
 parser = argparse.ArgumentParser()
-parser.add_argument('--dataset_root', type=str, help="dataset root")
+parser.add_argument('--dataset_root',default="/home/medical/Anomaly_Project/InCTRL/delete/brain_tumor_dataset" ,type=str, help="dataset root")
 args = parser.parse_args()
 
 normal_root = os.path.join(args.dataset_root, 'no')
@@ -15,7 +15,7 @@ outlier_fnames = os.listdir(outlier_root)
 
 normal_train, normal_test, _, _ = train_test_split(normal_fnames, normal_fnames, test_size=0.25, random_state=42)
 
-target_root = './BrainMRI_anomaly_detection/brainmri'
+target_root = '/home/medical/Anomaly_Project/InCTRL/data/BrainMRI_anomaly_detection/brainmri'
 train_root = os.path.join(target_root, 'train/good')
 if not os.path.exists(train_root):
     os.makedirs(train_root)
