@@ -38,7 +38,7 @@ from .vp import (
     RandomPatchPrompter,
     FixedPatchPrompter
 )
-
+from PIL import Image
 from torch.autograd import Variable, grad
 
 PROMPT_TYPES = {
@@ -529,9 +529,31 @@ class InCTRL(nn.Module):
         x = x[torch.arange(x.shape[0]), text.argmax(dim=-1)] @ self.text_projection
         return F.normalize(x, dim=-1) if normalize else x
 
-    def peek_localization(self, array_1d, image_tensor):
-        with warnings.catch_warnings():
-            warnings.simplefilter("ignore")
+    def peek_localization(self, array_3d_list, image_tensor_list, ind, b, _count):
+        # Determine global min and max across all arrays in array_3d_list
+        global_vmin = np.min([np.min(array_3d.cpu().numpy().reshape(-1)) for array_3d in array_3d_list])
+        global_vmax = np.max([np.max(array_3d.cpu().numpy().reshape(-1)) for array_3d in array_3d_list])
+        # count = 0
+        count = _count                                                          #omit
+
+        # for array_3d, image_tensor in zip(array_3d_list,image_tensor_list):   #Open
+        array_3d = array_3d_list[-1]                                            #Omit
+        image_tensor = image_tensor_list[len(array_3d_list)-1]                  #Omit
+        num_arrays, length, _ = array_3d.shape
+        
+        if num_arrays != 3 or length != 225:
+            raise ValueError("Input array_3d should have shape (3, 225, 1).")
+        
+        fig, axes = plt.subplots(2, 2, figsize=(20, 20))
+        
+        image_np = image_tensor.cpu().numpy().transpose(1, 2, 0)  # Transpose to HWC format
+        image_pil = Image.fromarray((image_np * 255).astype(np.uint8))
+        axes[0, 0].imshow(image_pil)
+        axes[0, 0].set_title("Corresponding Image")
+        axes[0, 0].axis('off')
+        
+        for i in range(num_arrays):
+            array_1d = array_3d[i].reshape(-1)
             array_2d = array_1d.cpu().numpy().reshape((15, 15))
             
             greater_than_point_one = array_2d[array_2d > 0.2]
@@ -539,25 +561,24 @@ class InCTRL(nn.Module):
                 avg_greater_than_point_one = np.mean(greater_than_point_one)
             else:
                 avg_greater_than_point_one = 0
+            
+            row = (i + 1) // 2
+            col = (i + 1) % 2
+            
+            sns.heatmap(array_2d, annot=True, fmt=".2f", cmap="YlGnBu", cbar=False, vmin=global_vmin, vmax=global_vmax, ax=axes[row, col])
+            axes[row, col].set_title(f"15x15 Heatmap of Values (Avg > 0.2: {avg_greater_than_point_one:.2f}) - Array {i+1}")
+            axes[row, col].set_xlabel("Column")
+            axes[row, col].set_ylabel("Row")
+            
+        plt.tight_layout()
+        os.makedirs(f'./OUTPUT_images/etc/batch_{b*ind}/', exist_ok=True)
+        # plt.savefig(f"./OUTPUT_images/etc/batch_{b*ind}/combined_output_{b*ind+count}.png", dpi=300, bbox_inches='tight')
+        plt.savefig(f"./OUTPUT_images/etc/batch_{b*ind}/combined_output_{b*ind+count}.png", dpi=300, bbox_inches='tight')
+        count+=1
+        plt.close()
 
-            plt.figure(figsize=(10, 8))
-            sns.heatmap(array_2d, annot=True, fmt=".2f", cmap="YlGnBu", cbar=False,vmin=0, vmax=1)
-            plt.title(f"15x15 Heatmap of Values (Avg > 0.2: {avg_greater_than_point_one:.2f})")
-            plt.xlabel("Column")
-            plt.ylabel("Row")
-            plt.savefig("heatmap.png", dpi=300, bbox_inches='tight')
-            plt.close()
 
-            plt.figure(figsize=(10, 10))
-            image_np = image_tensor.cpu().numpy().transpose(1, 2, 0)  # Transpose to HWC format
-            plt.imshow(image_np)
-            plt.title("Corresponding Image")
-            plt.axis('off')
-            plt.savefig("corresponding_image.png", dpi=300, bbox_inches='tight')
-            plt.close()
-
-
-    def forward(self, tokenizer, image: Optional[torch.Tensor] = None, text: Optional[torch.Tensor] = None, normal_list = None):
+    def forward(self, tokenizer, image: Optional[torch.Tensor] = None, text: Optional[torch.Tensor] = None, normal_list = None, ind=0):
         if normal_list == None:
             img = image[0].cuda(non_blocking=True)                                              # image -> (9,32,3,240,240) ; img -> (32,3,240,240)
             normal_image = image[1:]                                                    
@@ -581,10 +602,12 @@ class InCTRL(nn.Module):
         Fp_list_n = torch.stack(Fp_list_n)                                                      # Fp_list_n ->  (3,8*32=256,226,896)
 
         Fp_list = Fp_list[:, :, 1:, :]                                                          # Fp_list -> (3, 32, 225, 896)
-        Fp_list_n = Fp_list_n[:, :, 1:, :]                                                      # Fp_list_n ->  (3,8*32=256,225,896)
-
+        _Fp_list_n = Fp_list_n[:, :, 1:, :]                                                      # _Fp_list_n ->  (3,8*32=256,225,896)
+        
         Fp_list = Fp_list.reshape(b, 3, 225, -1)                                                # Fp_list -> (32, 3, 225, 896)
-        Fp_list_n = Fp_list_n.reshape(b, 3, 225 * shot, -1)                                     # Fp_list_n ->  (32, 3, 225*8=1800, 896)
+        Fp_list_n = _Fp_list_n.reshape(b, 3, 225 * shot, -1)                                     # Fp_list_n ->  (32, 3, 225*8=1800, 896)
+        _l, _, _p, _w = _Fp_list_n.shape
+        # _Fp_list_n.reshape(b,_l, _p, -1, _w)                                                    # _Fp_list_n -> (32, 3, 225, 8, 896)
 
         token_n = token_n.reshape(b, shot, -1)                                                  # token_n -> (32, 8, 640)
 
@@ -596,6 +619,8 @@ class InCTRL(nn.Module):
         text_score = []                                                                         # 
         max_diff_score = []
         patch_ref_map = []
+        peek_list = []
+        _count = 0
         for i in range(len(token)):                                         # 32 iterations
             Fp = Fp_list[i, :, :, :]                                                            # Fp -> (3, 225, 896)             
             Fp_n = Fp_list_n[i, :, :, :]                                                        # Fp_n -> (3, 225*8=1800, 896)
@@ -604,21 +629,31 @@ class InCTRL(nn.Module):
             for j in range(len(Fp)):                                        # 3 iterations
                 tmp_x = Fp[j, :, :]                                                             # tmp_x -> (225, 896)
                 tmp_n = Fp_n[j, :, :]                                                           # tmp_n -> (1800, 896)
+                _tmp_n = Fp_n[j, :, :].reshape(_p, -1, _w)                                      # _tmp_n -> (225, 8, 896)
+
                 am_fp = list()                                                                  
-                for k in range(len(tmp_x)):
+                for k in range(len(tmp_x)):                                 # 225 iterations
                     tmp = tmp_x[k]                                                              # tmp -> (896)
+                    _tmpN = _tmp_n[k]                                                            # _tmpN -> (8, 896)
+
                     tmp = tmp.unsqueeze(0)                                                      # tmp -> (1,896)
-                    tmp_n = tmp_n / tmp_n.norm(dim=-1, keepdim=True)                            # tmp_n -> (225*8, 896) 
+
+                    # tmp_n = tmp_n / tmp_n.norm(dim=-1, keepdim=True)                          # tmp_n -> (225*8, 896) 
+                    _tmpN = _tmpN / _tmpN.norm(dim=-1, keepdim=True)                            # _tmpN -> (8, 896) 
                     tmp = tmp / tmp.norm(dim=-1, keepdim=True)                                  # tmp -> (1,896)
-                    s = (0.5 * (1 - (tmp @ tmp_n.T))).min(dim=1).values                         # tmp -> (1) (like: 0.0542)
+                    
+                    # s = (0.5 * (1 - (tmp @ tmp_n.T))).min(dim=1).values                         # s -> (1) (like: 0.0542)
+                    s = (0.5 * (1 - (tmp @ _tmpN.T))).min(dim=1).values                         # s -> (1) (like: 0.0542)
                     am_fp.append(s)                                                             # am_fp (finally) -> (225) list of tmp tensor results
                 am_fp = torch.stack(am_fp)                                                      # am_fp -> (225,1)
                 Fp_map.append(am_fp)                                                            # Fp_map (finally) -> (3, 225, 1)
-            Fp_map = torch.stack(Fp_map)                                                        # Fp_map -> (3, 225, 1)
-            Fp_map = torch.mean(Fp_map.squeeze(2), dim=0)                                      # Fp_map -> (225)
-            # blockPrint()
-            self.peek_localization(Fp_map, img[i])
-            # enablePrint()
+            _Fp_map = torch.stack(Fp_map)                                                       # _Fp_map -> (3, 225, 1)
+            peek_list.append(_Fp_map)
+            Fp_map = torch.mean(_Fp_map.squeeze(2), dim=0)                                      # Fp_map -> (225)
+            
+            self.peek_localization(peek_list, img, ind, b, _count)
+            _count+=1
+
             patch_ref_map.append(Fp_map)                                                        # patch_ref_map (finally) -> (32, 225) ?
             score = Fp_map.max(dim=0).values                                                    # score -> (1) (like: 0.1792)
             max_diff_score.append(score)                                                        # max_diff_score (finally) -> (32, 1) ?
@@ -645,7 +680,8 @@ class InCTRL(nn.Module):
             score = (100 * image_feature @ text_features.T).softmax(dim=-1)                     # score -> (2,1) (like:[.8761, .1239])
             tmp = score[0, 1]                                                                   # tmp -(1) -> (like : .1239) > it takes the negative feature (anomaly score)
             text_score.append(tmp)                                                              # text_score (final) -> (32) -> (like: [.1239, ...])
-
+        
+        # self.peek_localization(peek_list, img, ind, b)
         text_score = torch.stack(text_score).unsqueeze(1)                                       # text_score -> (32,1)      
         img_ref_score = self.diff_head_ref.forward(token_ref)                                   # img_ref_score -> (32, 1)
         patch_ref_map = torch.stack(patch_ref_map)                                              # patch_ref_map -> (32, 225)

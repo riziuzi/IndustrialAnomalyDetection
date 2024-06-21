@@ -65,13 +65,15 @@ def eval_epoch(val_loader, model, cfg, tokenizer, normal_list, mode=None):
         # if cur_iter<=-1: continue
         if cfg.NUM_GPUS:
             labels = labels.cuda()
+
+        # peek_image(inputs[0][-2])                           #Omit
+        # peek_image(inputs[0][0])
+        inputs[0] = inputs[0].flip(0)
         # peek_image(inputs[0][-2])
         # peek_image(inputs[0][0])
-        # inputs[0] = inputs[0].flip(0)
-        # peek_image(inputs[0][-2])
-        # peek_image(inputs[0][0])
-        # labels.flip(0)
-        preds, _ = model(tokenizer, inputs, types, normal_list)
+        labels.flip(0)
+
+        preds, _ = model(tokenizer, inputs, types, normal_list, cur_iter)
 
         total_pred = torch.cat((total_pred, preds), 0)
         total_label = torch.cat((total_label, labels), 0)
