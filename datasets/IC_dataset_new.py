@@ -15,7 +15,7 @@ import copy
 import cv2
 from .build import DATASET_REGISTRY
 import logging
-
+from torchvision import transforms
 from PIL import Image
 import numpy as np
 
@@ -93,14 +93,25 @@ class IC_dataset(VisionDataset):
                 self.outlier_samples.extend(cur_outlier)
 
         self.transform = transform
+        self.transform_mask = transforms.Compose([
+            transforms.Resize(size=240, interpolation=transforms.InterpolationMode.BICUBIC),
+            transforms.CenterCrop(size=(240, 240)),
+            transforms.ToTensor(),
+        ])
         self.total_n, self.total_o = len(self.normal_samples), len(self.outlier_samples)
         self.image = self.normal_samples + self.outlier_samples
 
     def _load_image(self, path: str) -> Image.Image:
-        if 'npy' in path[-3:]:
+        if path.endswith('.npy'):
             img = np.load(path)
+            if img.ndim == 3 and img.shape[2] == 3:
+                img = np.mean(img, axis=2, keepdims=True)
             return img
-        return Image.open(path)    #.convert('RGB')
+        else:
+            img = Image.open(path)
+            if img.mode == 'RGB': 
+                img = img.convert('L')
+            return img
 
     def _combine_images(self, image, image2):
         h, w = image.shape[1], image.shape[2]
@@ -110,12 +121,14 @@ class IC_dataset(VisionDataset):
     def __getitem__(self, index: int) -> Tuple[Any, Any]:
         sample = self.image[index]                                                                              # query comes from both Normal and Outlier Mixture
         image = self._load_image(sample['image_path'])
+        mask = self._load_image(sample['mask'])
         label = sample['target']
         sample_type = sample['type']
 
         # decide mode for interpolation
         cur_transforms = self.transform
-        image = cur_transforms(image)
+        image = self.transform(image)
+        mask = self.transform_mask(mask)
 
         # sample the normal samples belonging to the same type
         same_normal_samples = [i for i in self.normal_samples if i['type']==sample_type]                        # Prompt comes from just Normal
@@ -130,9 +143,7 @@ class IC_dataset(VisionDataset):
             image_list.append(n_img)
 
         image_type = sample_type
-
-        return image_list, image_type, label
-
+        return image_list, image_type, label, mask
     def __len__(self) -> int:
         return len(self.image)
 

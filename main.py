@@ -176,7 +176,8 @@ def load_list_from_file(file_path):
 if __name__ == "__main__":
     print("\n")
     # file_path = "/home/medical/Anomaly_Project/pytorch-cutpaste/single_object_list_bottle.pkl"
-    file_path = "/home/medical/Anomaly_Project/pytorch-cutpaste/single_object_list_pcb2.pkl"
+    # file_path = "/home/medical/Anomaly_Project/pytorch-cutpaste/single_object_list_pcb2.pkl"
+    file_path = "/home/medical/Anomaly_Project/InCTRL/data/train_object_list.pkl"
     lst = load_list_from_file(file_path)
     for obj in lst:
         main(obj)

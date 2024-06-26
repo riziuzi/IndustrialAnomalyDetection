@@ -462,6 +462,80 @@ class TransformerBasicHead(nn.Module):
         x = self.projection3(x)
         return torch.sigmoid(x)
 
+# class ConvOperationLayer(nn.Module):
+#     def __init__(self):
+#         super(ConvOperationLayer, self).__init__()                                                          # ????????????????
+#         self.conv1 = nn.Conv2d(in_channels=896, out_channels=512, kernel_size=3, padding=1)
+#         self.conv2 = nn.Conv2d(in_channels=512, out_channels=256, kernel_size=3, padding=1)
+#         self.conv3 = nn.Conv2d(in_channels=256, out_channels=128, kernel_size=3, padding=1)
+#         self.fc = nn.Linear(128 * 225, 1)  # Assuming output is a single localization result
+
+#     def forward(self, query_patches, normal_patches):
+#         # Process query image patches
+#         query_patches = query_patches.view(-1, 896, 225, 32)  # Reshape to match Conv2d input
+#         q = self.conv1(query_patches)
+#         q = torch.relu(q)
+#         q = self.conv2(q)
+#         q = torch.relu(q)
+#         q = self.conv3(q)
+#         q = torch.relu(q)
+
+#         # Process normal image patches
+#         normal_patches = normal_patches.view(-1, 896, 225, 8 * 32)  # Combine batch and normal patches
+#         n = self.conv1(normal_patches)
+#         n = torch.relu(n)
+#         n = self.conv2(n)
+#         n = torch.relu(n)
+#         n = self.conv3(n)
+#         n = torch.relu(n)
+
+#         # Combine and produce the final output
+#         combined = torch.cat((q, n), dim=2)
+#         combined = combined.view(combined.size(0), -1)
+#         output = self.fc(combined)
+#         return output
+
+
+
+
+class ConvUpscaleBlock(nn.Module):
+    def __init__(self, in_channels, out_channels, scale_factor):
+        super(ConvUpscaleBlock, self).__init__()
+        self.conv1 = nn.Conv2d(in_channels, out_channels, kernel_size=3, padding=1)
+        self.conv2 = nn.Conv2d(out_channels, out_channels, kernel_size=3, padding=1)
+        self.scale_factor = scale_factor
+
+    def forward(self, x, residual):
+        x = F.relu(self.conv1(torch.cat((x,residual), dim=1)))
+        x = F.relu(self.conv2(x))
+        x = F.interpolate(x, scale_factor=self.scale_factor, mode='nearest')
+        residual_upscaled = F.interpolate(residual, size=(x.size(2), x.size(3)), mode='nearest')
+        x = torch.cat((x, residual_upscaled), dim=1)
+        return x
+
+class ConvOperationLayer(nn.Module):
+    def __init__(self, initial_channels, num_blocks, final_out_channels=1):
+        super(ConvOperationLayer, self).__init__()
+        channels = initial_channels
+        self.blocks = nn.ModuleList()
+        for i in range(num_blocks-1):
+            next_channels = channels // 2
+            self.blocks.append(ConvUpscaleBlock(in_channels=channels, out_channels=next_channels, scale_factor=2))       # adding the block of the model
+            channels = next_channels + 1                 # adding thiws for orginal map
+        self.final_conv = nn.Conv2d(channels, final_out_channels, kernel_size=1)
+
+    def forward(self, x):
+        x = x.permute(0, 3, 1, 2)  # x -> from (batch_size, height, width, channels) to (batch_size, channels, height, width) -> reason: conv2d expects the channels first he dimension of the input!!!!!!!!!
+        for block in self.blocks:
+            residual = x[:, -1:, :, :] 
+            x = x[:, :-1, :, :]
+            x = block(x, residual)
+        x = self.final_conv(x)
+        return x
+
+
+
+
 class Adapter(nn.Module):
     def __init__(self, c_in, reduction=4):
         super(Adapter, self).__init__()
@@ -506,11 +580,25 @@ class InCTRL(nn.Module):
         self.diff_head = TransformerBasicHead(225, 1)
         self.diff_head_ref = TransformerBasicHead(640, 1)
 
+        self.convOperation = ConvOperationLayer(initial_channels=896+1, num_blocks=5, final_out_channels=1)
+
         for p in self.visual.parameters():
             p.requires_grad = False
 
         for p in text.parameters():
             p.requires_grad = False
+
+        for p in self.adapter.parameters():
+            p.requires_grad = False
+
+        for p in self.diff_head.parameters():
+            p.requires_grad = False
+
+        for p in self.diff_head_ref.parameters():
+            p.requires_grad = False
+
+
+        
 
     def encode_image(self, image, out_layers: list = [7, 9, 11], normalize: bool = False):      # image -> (32, 3, 240, 240); normalize=false
         features = self.visual.forward(image, out_layers)
@@ -604,6 +692,7 @@ class InCTRL(nn.Module):
             for j in range(len(Fp)):                                        # 3 iterations
                 tmp_x = Fp[j, :, :]                                                             # tmp_x -> (225, 896)
                 tmp_n = Fp_n[j, :, :]                                                           # tmp_n -> (1800, 896)
+                                                                                                # here                                                                               
                 am_fp = list()                                                                  
                 for k in range(len(tmp_x)):
                     tmp = tmp_x[k]                                                              # tmp -> (896)
@@ -617,7 +706,7 @@ class InCTRL(nn.Module):
             Fp_map = torch.stack(Fp_map)                                                        # Fp_map -> (3, 225, 1)
             Fp_map = torch.mean(Fp_map.squeeze(2), dim=0)                                      # Fp_map -> (225)
             # blockPrint()
-            self.peek_localization(Fp_map, img[i])
+            # self.peek_localization(Fp_map, img[i])
             # enablePrint()
             patch_ref_map.append(Fp_map)                                                        # patch_ref_map (finally) -> (32, 225) ?
             score = Fp_map.max(dim=0).values                                                    # score -> (1) (like: 0.1792)
@@ -646,6 +735,11 @@ class InCTRL(nn.Module):
             tmp = score[0, 1]                                                                   # tmp -(1) -> (like : .1239) > it takes the negative feature (anomaly score)
             text_score.append(tmp)                                                              # text_score (final) -> (32) -> (like: [.1239, ...])
 
+        anomaly_localisation_maps = 0
+        for i in range(Fp_list.shape[1]): 
+            anomaly_localisation_maps += self.convOperation(torch.cat((torch.stack(patch_ref_map).reshape(b,15,15).unsqueeze(-1), Fp_list[:, i, :, :].reshape(b, 15, 15, 896)), dim=-1))
+        anomaly_localisation_maps/=Fp_list.shape[1]                                             # taking average as I just want to test
+
         text_score = torch.stack(text_score).unsqueeze(1)                                       # text_score -> (32,1)      
         img_ref_score = self.diff_head_ref.forward(token_ref)                                   # img_ref_score -> (32, 1)
         patch_ref_map = torch.stack(patch_ref_map)                                              # patch_ref_map -> (32, 225)
@@ -659,7 +753,7 @@ class InCTRL(nn.Module):
 
         img_ref_score = img_ref_score.squeeze(1)                                                # img_ref_score -> (32)
         # print(f"final_score: {final_score}, img_ref_score: {img_ref_score}")
-        return final_score, img_ref_score
+        return final_score, img_ref_score, anomaly_localisation_maps
 
 class CustomTextCLIP(nn.Module):
     output_dict: torch.jit.Final[bool]

@@ -105,7 +105,7 @@ _C.TEST.ENABLE = True
 _C.TEST.DATASET = "IC_dataset"
 
 # Total mini-batch size
-_C.TEST.BATCH_SIZE = 32
+_C.TEST.BATCH_SIZE = 16
 
 # Path to the checkpoint to load the initial weight.
 # _C.TEST.CHECKPOINT_FILE_PATH = "sftp://medical@172.18.43.23/home/medical/Anomaly_Project/InCTRL/checkpoints/checkpoints/4/checkpoint.pyth"

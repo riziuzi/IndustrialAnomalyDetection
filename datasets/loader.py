@@ -24,14 +24,15 @@ def multiple_samples_collate(batch):
     Returns:
         (tuple): collated data batch.
     """
-    inputs, targets, labels = zip(*batch)
+    labels = [item for sublist in labels for item in sublist]
+    inputs, targets, labels, masks = zip(*batch)
     inputs = [item for sublist in inputs for item in sublist]
     targets = [item for sublist in targets for item in sublist]
-    labels = [item for sublist in labels for item in sublist]
+    masks = [item for sublist in masks for item in sublist]
 
-    inputs, targets, labels = default_collate(inputs), default_collate(targets), default_collate(labels)
+    inputs, targets, labels, masks = default_collate(inputs), default_collate(targets), default_collate(labels), default_collate(masks)
 
-    return inputs, targets, labels
+    return inputs, targets, labels, masks
 
 
 def construct_loader(cfg, split, transform):
@@ -78,6 +79,7 @@ def construct_loader(cfg, split, transform):
             worker_init_fn=worker_init_fn_seed,
             batch_sampler = BalancedBatchSampler(cfg, dataset),  # sampler=sampler,
             num_workers=cfg.DATA_LOADER.NUM_WORKERS,
+            collate_fn=custom_collate_fn
         )
     else:
         loader = torch.utils.data.DataLoader(
@@ -92,6 +94,30 @@ def construct_loader(cfg, split, transform):
 
     return loader
 
+def custom_collate_fn(batch):
+    """
+    Collate function for repeated augmentation. Each instance in the batch has
+    more than one sample.
+    Args:
+        batch (tuple or list): data batch to collate.
+    Returns:
+        (tuple): collated data batch.
+    """
+    inputs, targets, labels, masks = zip(*batch)
+
+    labels = torch.tensor([i for i in labels])
+
+    stacked_inputs = torch.stack([torch.stack(batch) for batch in inputs])
+    transposed_inputs = stacked_inputs.transpose(0, 1)
+    inputs = [tensor for tensor in transposed_inputs]
+
+    targets = [i for i in targets]
+    
+    masks = torch.stack([i for i in masks])
+
+    # inputs, targets, labels, masks = default_collate(inputs), default_collate(targets), default_collate(labels), default_collate(masks)
+
+    return inputs, targets, labels, masks
 
 def shuffle_dataset(loader, cur_epoch):
     """ "

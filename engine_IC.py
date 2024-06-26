@@ -64,18 +64,20 @@ def train_epoch(
     pbar = progressbar.ProgressBar(max_value=len(train_loader), widgets=widgets)
 
     all_loss = 0.0
-    for cur_iter, (inputs, types, labels) in enumerate(train_loader):
+    for cur_iter, (inputs, types, labels, masks) in enumerate(train_loader):
 
         if cfg.NUM_GPUS:
             labels = labels.cuda()
+            masks = masks.cuda()
         
         
-        preds, preds2 = model(tokenizer, inputs, types, None)
+        preds, preds2, preds3 = model(tokenizer, inputs, types, None)
         loss_fun = BinaryFocalLoss()
         loss_fun = loss_fun.cuda()
 
         # Compute the loss.
-        loss = loss_fun(preds, labels.float()) + loss_fun(preds2, labels.float())
+        # loss = loss_fun(preds, labels.float()) + loss_fun(preds2, labels.float())
+        loss = loss_fun(preds3, masks.float())
 
         # check Nan Loss.
         misc.check_nan_losses(loss)
@@ -233,7 +235,7 @@ def train(cfg):
 
     print("Loading Train/Test Loaders ...")
     train_loader = loader.construct_loader(cfg, "train", transform)
-    test_loader = loader.construct_loader(cfg, "test", transform)
+    # test_loader = loader.construct_loader(cfg, "test", transform)
     print("Loading Complete!")
 
     tokenizer = open_clip.get_tokenizer('ViT-B-16-plus-240')
@@ -279,12 +281,12 @@ def train(cfg):
         print("\n")
         # total = eval_epoch(train_loader, model, cfg, tokenizer, "train")
         # test = eval_epoch(test_loader, model, cfg, tokenizer, "test")
-        test_losses.append(test)
+        # test_losses.append(test)
         # print("Total ROC and PR: ", total, "AND Test ROC and PR : ", test)
-        print("Test ROC and PR : ", test)
+        # print("Test ROC and PR : ", test)
     print("End fo Epochs")
     print(f"List of Epoch losses -> {epoch_losses}")
-    print(f"List of Test losses (ROC, PR) -> {test_losses}")
+    # print(f"List of Test losses (ROC, PR) -> {test_losses}")
     writer.flush()
     print("\n")
     print("\n")
@@ -320,7 +322,10 @@ def load_latest_checkpoint(model, checkpoint_dir):
             # latest_checkpoint_path = os.path.join(checkpoint_dir, latest_checkpoint_file)
             
             checkpoint = torch.load(os.path.join(checkpoint_dir,"checkpoint.pyth"), map_location="cpu")
-            model.load_state_dict(checkpoint)
+            # model_state_dict = model.state_dict()
+            # filtered_state_dict = {k: v for k,v in checkpoint.items if k in model_state_dict}                       # things which is in both checkpoint as well as new model
+            # model_state_dict.update(filtered_state_dict)
+            model.load_state_dict(checkpoint, strict=False)
             # latest_epoch = checkpoint['epoch']
             print(f"Loaded checkpoint '{os.path.join(checkpoint_dir, 'checkpoint.pyth')}'")
 
