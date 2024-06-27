@@ -60,7 +60,7 @@ def eval_epoch(val_loader, model, cfg, tokenizer, normal_list, mode=None):
     total_pred = torch.Tensor([]).cuda()
     total_iterations = len(val_loader)
     progress_bar = progressbar.ProgressBar(max_value=total_iterations, prefix="Validation")
-    for cur_iter, (inputs, types, labels) in enumerate(val_loader):
+    for cur_iter, (inputs, types, labels, masks) in enumerate(val_loader):
         # print("Validation iteration : ", cur_iter, f"/{len(val_loader)}")
         # if cur_iter<=-1: continue
         if cfg.NUM_GPUS:
