@@ -9,7 +9,7 @@ import argparse
 import sys
 import os
 os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
-os.environ['CUDA_VISIBLE_DEVICES'] = "0"                                                                                        # check
+os.environ['CUDA_VISIBLE_DEVICES'] = "1"                                                                                        # check
 import torch
 
 from engine_test import test
@@ -190,8 +190,8 @@ if __name__ == "__main__":
     print("shot number is :", shot_number)
     dir_paths = {                                                                                                              # check
                 # "./AD_json/" : "",
-                #  "/home/medical/Anomaly_Project/InCTRL/AD_json/visa/" : "/home/medical/Anomaly_Project/InCTRL/data/fs_samples/visa/",
-                 "/home/medical/Anomaly_Project/InCTRL/AD_json/brainmri/" : "/home/medical/Anomaly_Project/InCTRL/data/fs_samples/BrainMRI/",
+                 "/home/medical/Anomaly_Project/InCTRL/AD_json/visa/" : "/home/medical/Anomaly_Project/InCTRL/data/fs_samples/visa/",
+                #  "/home/medical/Anomaly_Project/InCTRL/AD_json/brainmri/" : "/home/medical/Anomaly_Project/InCTRL/data/fs_samples/BrainMRI/",
                 #  "/home/medical/Anomaly_Project/InCTRL/AD_json/headct/" : "/home/medical/Anomaly_Project/InCTRL/data/fs_samples/HeadCT/",
                 #  "/home/medical/Anomaly_Project/InCTRL/AD_json/sdd/" : "/home/medical/Anomaly_Project/InCTRL/SDD/SDD/",
                 #  "/home/medical/Anomaly_Project/InCTRL/AD_json/elpv/" : "/home/medical/Anomaly_Project/InCTRL/elpv",

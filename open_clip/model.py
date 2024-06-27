@@ -11,7 +11,7 @@ import re
 import os
 import sys
 from sklearn.metrics import pairwise
-
+from PIL import Image
 import numpy as np
 import torch
 import torch.nn.functional as F
@@ -28,6 +28,8 @@ from .modified_resnet import ModifiedResNet
 from .timm_model import TimmModel
 from .transformer import LayerNormFp32, LayerNorm, QuickGELU, Attention, VisionTransformer, TextTransformer, VisionTransformer_Mul
 from .new_utils import to_2tuple
+
+from image_display import save_images_and_localisation
 
 import seaborn as sns
 import matplotlib.pyplot as plt
@@ -56,27 +58,7 @@ def blockPrint():
 def enablePrint():
     sys.stdout = sys.__stdout__
 
-def save_images_and_patches(img, patch_ref_map, num_images=8):
-    indices = torch.randperm(img.size(0))[:num_images]
 
-    selected_images = img[indices]
-    grid_img = vutils.make_grid(selected_images, nrow=8, padding=2, normalize=True)
-    plt.figure(figsize=(20, 5))
-    plt.imshow(grid_img.permute(1, 2, 0).cpu())
-    plt.axis('off')
-    plt.title('Randomly Selected Query Images')
-    plt.savefig('selected_query_images.png')
-    plt.close()
-
-    selected_patch_maps = patch_ref_map[indices].cpu().numpy()
-    fig, axes = plt.subplots(2, 4, figsize=(20, 5)) 
-    for i, ax in enumerate(axes.flat):
-        if i < len(selected_patch_maps):
-            sns.heatmap(selected_patch_maps[i].reshape(15, 15), ax=ax, cbar=False, cmap='viridis') 
-        ax.axis('off')
-    fig.suptitle('Corresponding Patch Reference Maps')
-    plt.savefig('patch_reference_maps.png')
-    plt.close()
 
 
 @dataclass
@@ -644,8 +626,9 @@ class InCTRL(nn.Module):
             plt.savefig("corresponding_image.png", dpi=300, bbox_inches='tight')
             plt.close()
 
+    
 
-    def forward(self, tokenizer, image: Optional[torch.Tensor] = None, text: Optional[torch.Tensor] = None, normal_list = None):
+    def forward(self, tokenizer, image: Optional[torch.Tensor] = None, text: Optional[torch.Tensor] = None, normal_list = None, ind = None):
         if normal_list == None:
             img = image[0].cuda(non_blocking=True)                                              # image -> (9,32,3,240,240) ; img -> (32,3,240,240)
             normal_image = image[1:]                                                    
@@ -738,12 +721,12 @@ class InCTRL(nn.Module):
         anomaly_localisation_maps = 0
         for i in range(Fp_list.shape[1]): 
             anomaly_localisation_maps += self.convOperation(torch.cat((torch.stack(patch_ref_map).reshape(b,15,15).unsqueeze(-1), Fp_list[:, i, :, :].reshape(b, 15, 15, 896)), dim=-1))
-        anomaly_localisation_maps/=Fp_list.shape[1]                                             # taking average as I just want to test
+        anomaly_localisation_maps/=Fp_list.shape[1]                                             # taking average as I just want to test -> ()
+        save_images_and_localisation(img, anomaly_localisation_maps, save_dir=f"./TEST/{ind}")
 
         text_score = torch.stack(text_score).unsqueeze(1)                                       # text_score -> (32,1)      
         img_ref_score = self.diff_head_ref.forward(token_ref)                                   # img_ref_score -> (32, 1)
         patch_ref_map = torch.stack(patch_ref_map)                                              # patch_ref_map -> (32, 225)
-        # save_images_and_patches(img, patch_ref_map)
         holistic_map = text_score + img_ref_score + patch_ref_map                               # holistic_map -> (32, 225)
         hl_score = self.diff_head.forward(holistic_map)                                         # hl_score -> (32, 1)
 
