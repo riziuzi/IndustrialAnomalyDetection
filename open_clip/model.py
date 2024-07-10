@@ -21,13 +21,14 @@ from torch import Tensor
 import open_clip.utils.misc as misc
 import argparse
 from functools import partial
-from open_clip.utils.env import checkpoint_pathmgr as pathmgr
 
+from open_clip.utils.env import checkpoint_pathmgr as pathmgr
 from .hf_model import HFTextEncoder
 from .modified_resnet import ModifiedResNet
 from .timm_model import TimmModel
 from .transformer import LayerNormFp32, LayerNorm, QuickGELU, Attention, VisionTransformer, TextTransformer, VisionTransformer_Mul
 from .new_utils import to_2tuple
+import time
 
 from image_display import save_images_and_localisation
 
@@ -667,6 +668,7 @@ class InCTRL(nn.Module):
         text_score = []                                                                         # 
         max_diff_score = []
         patch_ref_map = []
+        start = time.process_time()
         for i in range(len(token)):                                         # 32 iterations
             Fp = Fp_list[i, :, :, :]                                                            # Fp -> (3, 225, 896)             
             Fp_n = Fp_list_n[i, :, :, :]                                                        # Fp_n -> (3, 225*8=1800, 896)
@@ -717,7 +719,7 @@ class InCTRL(nn.Module):
             score = (100 * image_feature @ text_features.T).softmax(dim=-1)                     # score -> (2,1) (like:[.8761, .1239])
             tmp = score[0, 1]                                                                   # tmp -(1) -> (like : .1239) > it takes the negative feature (anomaly score)
             text_score.append(tmp)                                                              # text_score (final) -> (32) -> (like: [.1239, ...])
-
+        print(time.process_time() - start)
         anomaly_localisation_maps = 0
         for i in range(Fp_list.shape[1]): 
             anomaly_localisation_maps += self.convOperation(torch.cat((torch.stack(patch_ref_map).reshape(b,15,15).unsqueeze(-1), Fp_list[:, i, :, :].reshape(b, 15, 15, 896)), dim=-1))
@@ -736,6 +738,7 @@ class InCTRL(nn.Module):
 
         img_ref_score = img_ref_score.squeeze(1)                                                # img_ref_score -> (32)
         # print(f"final_score: {final_score}, img_ref_score: {img_ref_score}")
+        # return final_score, img_ref_score
         return final_score, img_ref_score, anomaly_localisation_maps
 
 class CustomTextCLIP(nn.Module):

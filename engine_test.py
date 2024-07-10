@@ -26,7 +26,7 @@ from tqdm import tqdm
 import progressbar
 from image_display import display_image
 import seaborn as sns
-
+from image_display import save_images_localisation_mask
 logger = logging.get_logger(__name__)
 
 def _convert_to_rgb(image):
@@ -71,7 +71,8 @@ def eval_epoch(val_loader, model, cfg, tokenizer, normal_list, mode=None):
         # peek_image(inputs[0][-2])
         # peek_image(inputs[0][0])
         # labels.flip(0)
-        preds, _, _ = model(tokenizer, inputs, types, normal_list, cur_iter)
+        preds, _, anomaly_localisation_maps, img = model(tokenizer, inputs, types, normal_list, cur_iter)
+        save_images_localisation_mask(img, anomaly_localisation_maps,masks, save_dir=f"./TEST/Second_{cur_iter}")
 
         total_pred = torch.cat((total_pred, preds), 0)
         total_label = torch.cat((total_label, labels), 0)
@@ -79,7 +80,6 @@ def eval_epoch(val_loader, model, cfg, tokenizer, normal_list, mode=None):
 
         total_pred = total_pred.cpu().numpy() 
         total_label = total_label.cpu().numpy()
-
         print("Predict " + mode + " set: ")
         try:
             total_roc, total_pr = aucPerformance(total_pred, total_label)

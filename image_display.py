@@ -149,3 +149,52 @@ def save_images_and_localisation(imgs, localisations, save_dir="./TEST"):       
         grid_img.paste(img_pil, (0, 0))
         grid_img.paste(loc_pil.convert('RGB'), (img_pil.width, 0))
         grid_img.save(os.path.join(save_dir, f'image_localisation_{i + 1}.jpg'))
+
+
+# def normalize_to_uint8(arr):
+#     arr_min, arr_max = arr.min(), arr.max()
+#     return ((arr - arr_min) * 255.0 / (arr_max - arr_min)).astype(np.uint8)
+
+def save_images_localisation_mask(imgs, localisations, masks, save_dir="./TEST"):
+    """
+    Save each image, its corresponding localization, and mask in a 1x3 grid.
+
+    Parameters:
+    imgs (numpy.ndarray): Array of images of shape (32, 3, 240, 240).
+    localisations (numpy.ndarray): Array of localization images of shape (32, 1, 240, 240).
+    masks (numpy.ndarray): Array of mask images of shape (32, 1, 240, 240).
+    save_dir (str): Directory to save the images.
+    """
+    if not os.path.exists(save_dir):
+        os.makedirs(save_dir)
+    imgs = imgs.cpu()
+    localisations = localisations.cpu()
+    masks = masks.cpu()
+    
+    num_images = imgs.shape[0]
+    for i in range(num_images):
+        img = imgs[i]
+        loc = localisations[i]
+        mask = masks[i]
+
+        img = normalize_to_uint8(img.permute(1, 2, 0).numpy())
+        loc = normalize_to_uint8(loc[0].numpy())
+        mask = normalize_to_uint8(mask[0].numpy())
+
+        fig, axs = plt.subplots(1, 3, figsize=(15, 5))
+
+        axs[0].imshow(img)
+        axs[0].axis('off')
+        axs[0].set_title('Original Image')
+
+        axs[1].imshow(loc, cmap='gray')
+        axs[1].axis('off')
+        axs[1].set_title('Localization')
+
+        axs[2].imshow(mask, cmap='gray')
+        axs[2].axis('off')
+        axs[2].set_title('Mask')
+
+        plt.tight_layout()
+        plt.savefig(os.path.join(save_dir, f'image_localisation_mask_{i + 1}.png'), dpi=300)
+        plt.close(fig)
