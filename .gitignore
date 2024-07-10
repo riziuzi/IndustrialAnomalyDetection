@@ -11,6 +11,10 @@ Trained_ORIGINALcheckpoints
 runs
 tmp
 .vscode
+OUTPUTS
+OUTPUT_images
+TEST
+output_image.png
 
 ## I dont know if below ones are going to be useful or not in the directory of datasets
 
