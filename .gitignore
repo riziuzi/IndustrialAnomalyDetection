@@ -12,6 +12,8 @@ runs
 tmp
 .vscode
 OUTPUT_images
+OUTPUTS
+TEST
 
 ## I dont know if below ones are going to be useful or not in the directory of datasets
 
