@@ -320,7 +320,7 @@ def load_latest_checkpoint(model, checkpoint_dir):
             # latest_checkpoint_path = os.path.join(checkpoint_dir, latest_checkpoint_file)
             
             checkpoint = torch.load(os.path.join(checkpoint_dir,"checkpoint.pyth"), map_location="cpu")
-            model.load_state_dict(checkpoint)
+            model.load_state_dict(checkpoint,strict=False)
             # latest_epoch = checkpoint['epoch']
             print(f"Loaded checkpoint '{os.path.join(checkpoint_dir, 'checkpoint.pyth')}'")
 

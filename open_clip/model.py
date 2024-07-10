@@ -631,22 +631,30 @@ class InCTRL(nn.Module):
                 tmp_n = Fp_n[j, :, :]                                                           # tmp_n -> (1800, 896)
                 _tmp_n = Fp_n[j, :, :].reshape(_p, -1, _w)                                      # _tmp_n -> (225, 8, 896)
 
-                am_fp = list()                                                                  
-                for k in range(len(tmp_x)):                                 # 225 iterations
-                    tmp = tmp_x[k]                                                              # tmp -> (896)
-                    _tmpN = _tmp_n[k]                                                            # _tmpN -> (8, 896)
+                tmp_x_norm = tmp_x / tmp_x.norm(dim=-1, keepdim=True)                           # tmp_x_norm -> (225, 896)
+                _tmp_n_norm = _tmp_n / _tmp_n.norm(dim=-1, keepdim=True)                        # _tmp_n_norm -> (225, 8, 896)
+                tmp_x_reshaped = tmp_x_norm.unsqueeze(1)                                        # tmp_x_reshaped -> (225, 1, 896)
+    
+                s = 0.5 * (1 - torch.bmm(tmp_x_reshaped, _tmp_n_norm.transpose(1, 2)))          # s -> (225, 1, 8)
+                s_min, _ = s.min(dim=-1)                                                        # s_min -> (225, 1)
 
-                    tmp = tmp.unsqueeze(0)                                                      # tmp -> (1,896)
+                _Fp_map.append(s_min.squeeze(-1))
+                # am_fp = list()                                                                  
+                # for k in range(len(tmp_x)):                                 # 225 iterations
+                #     tmp = tmp_x[k]                                                              # tmp -> (896)
+                #     _tmpN = _tmp_n[k]                                                            # _tmpN -> (8, 896)
 
-                    # tmp_n = tmp_n / tmp_n.norm(dim=-1, keepdim=True)                          # tmp_n -> (225*8, 896) 
-                    _tmpN = _tmpN / _tmpN.norm(dim=-1, keepdim=True)                            # _tmpN -> (8, 896) 
-                    tmp = tmp / tmp.norm(dim=-1, keepdim=True)                                  # tmp -> (1,896)
+                #     tmp = tmp.unsqueeze(0)                                                      # tmp -> (1,896)
+
+                #     # tmp_n = tmp_n / tmp_n.norm(dim=-1, keepdim=True)                          # tmp_n -> (225*8, 896) 
+                #     _tmpN = _tmpN / _tmpN.norm(dim=-1, keepdim=True)                            # _tmpN -> (8, 896) 
+                #     tmp = tmp / tmp.norm(dim=-1, keepdim=True)                                  # tmp -> (1,896)
                     
-                    # s = (0.5 * (1 - (tmp @ tmp_n.T))).min(dim=1).values                         # s -> (1) (like: 0.0542)
-                    s = (0.5 * (1 - (tmp @ _tmpN.T))).min(dim=1).values                         # s -> (1) (like: 0.0542)
-                    am_fp.append(s)                                                             # am_fp (finally) -> (225) list of tmp tensor results
-                am_fp = torch.stack(am_fp)                                                      # am_fp -> (225,1)
-                Fp_map.append(am_fp)                                                            # Fp_map (finally) -> (3, 225, 1)
+                #     # s = (0.5 * (1 - (tmp @ tmp_n.T))).min(dim=1).values                         # s -> (1) (like: 0.0542)
+                #     s = (0.5 * (1 - (tmp @ _tmpN.T))).min(dim=1).values                         # s -> (1) (like: 0.0542)
+                #     am_fp.append(s)                                                             # am_fp (finally) -> (225) list of tmp tensor results
+                # am_fp = torch.stack(am_fp)                                                      # am_fp -> (225,1)
+                # Fp_map.append(am_fp)                                                            # Fp_map (finally) -> (3, 225, 1)
             _Fp_map = torch.stack(Fp_map)                                                       # _Fp_map -> (3, 225, 1)
             peek_list.append(_Fp_map)
             Fp_map = torch.mean(_Fp_map.squeeze(2), dim=0)                                      # Fp_map -> (225)
