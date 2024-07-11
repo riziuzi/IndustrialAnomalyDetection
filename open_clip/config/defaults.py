@@ -20,7 +20,7 @@ _C.TRAIN.ENABLE = True
 _C.TRAIN.DATASET = "IC_dataset"
 
 # Total mini-batch size.
-_C.TRAIN.BATCH_SIZE = 32
+_C.TRAIN.BATCH_SIZE = 16
 
 # Evaluate model on test data every eval period epochs.
 _C.TRAIN.EVAL_PERIOD = 1

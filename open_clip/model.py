@@ -631,7 +631,7 @@ class InCTRL(nn.Module):
     
 
     def forward(self, tokenizer, image: Optional[torch.Tensor] = None, text: Optional[torch.Tensor] = None, normal_list = None, ind = None):
-        start = time.process_time()
+        start1 = time.process_time()
         if normal_list == None:
             img = image[0].cuda(non_blocking=True)                                              # image -> (9,32,3,240,240) ; img -> (32,3,240,240)
             normal_image = image[1:]                                                    
@@ -768,7 +768,7 @@ class InCTRL(nn.Module):
         for i in range(Fp_list.shape[1]): 
             anomaly_localisation_maps += self.convOperation(torch.cat((torch.stack(patch_ref_map).reshape(b,15,15).unsqueeze(-1), Fp_list[:, i, :, :].reshape(b, 15, 15, 896)), dim=-1))
         anomaly_localisation_maps/=Fp_list.shape[1]                                             # taking average as I just want to test -> ()
-        save_images_and_localisation(img, anomaly_localisation_maps, save_dir=f"./TEST/{ind}")
+        # save_images_and_localisation(img, anomaly_localisation_maps, save_dir=f"./TEST/{ind}")
 
         text_score = torch.stack(text_score).unsqueeze(1)                                       # text_score -> (32,1)      
         img_ref_score = self.diff_head_ref.forward(token_ref)                                   # img_ref_score -> (32, 1)
@@ -783,7 +783,7 @@ class InCTRL(nn.Module):
         img_ref_score = img_ref_score.squeeze(1)                                                # img_ref_score -> (32)
         # print(f"final_score: {final_score}, img_ref_score: {img_ref_score}")
         # return final_score, img_ref_score
-        print(time.process_time()-start)
+        print("Time taken by an iteration : ",time.process_time()-start1, " with batch size : ", b)
         return final_score, img_ref_score, anomaly_localisation_maps
 
 class CustomTextCLIP(nn.Module):
