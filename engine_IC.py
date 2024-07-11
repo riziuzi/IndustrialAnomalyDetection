@@ -29,6 +29,7 @@ import progressbar
 import matplotlib.pyplot as plt
 from image_display import display_image
 import torch
+import time
 from torch.utils.tensorboard import SummaryWriter
 logger = logging.get_logger(__name__)
 
@@ -65,7 +66,7 @@ def train_epoch(
 
     all_loss = 0.0
     for cur_iter, (inputs, types, labels) in enumerate(train_loader):
-
+        start = time.process_time()
         if cfg.NUM_GPUS:
             labels = labels.cuda()
         
@@ -91,6 +92,7 @@ def train_epoch(
         loss_value = loss.item()
         all_loss = all_loss + loss_value
         pbar.update(cur_iter + 1)
+        print(f"time for completing one iteration (forward & backward) : {time.process_time()-start} out of {train_loader.__len__()} iterations")
 
     all_loss = all_loss / (cur_iter + 1)
     print("train_loss: ", all_loss)
@@ -245,6 +247,7 @@ def train(cfg):
     epoch_timer = EpochTimer()
     writer = SummaryWriter()
     for cur_epoch in range(start_epoch, 1):
+        start = time.process_time()
         print("Epoch: ", cur_epoch)
         # Train for one epoch.
         epoch_timer.epoch_tic()
@@ -282,6 +285,7 @@ def train(cfg):
         test_losses.append(test)
         # print("Total ROC and PR: ", total, "AND Test ROC and PR : ", test)
         print("Test ROC and PR : ", test)
+        print(f"Time for completing this epoch : {time.process_time()-start}")
     print("End fo Epochs")
     print(f"List of Epoch losses -> {epoch_losses}")
     print(f"List of Test losses (ROC, PR) -> {test_losses}")

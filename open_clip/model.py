@@ -12,6 +12,7 @@ import os
 import sys
 from sklearn.metrics import pairwise
 
+import time
 import numpy as np
 import torch
 import torch.nn.functional as F
@@ -579,6 +580,7 @@ class InCTRL(nn.Module):
 
 
     def forward(self, tokenizer, image: Optional[torch.Tensor] = None, text: Optional[torch.Tensor] = None, normal_list = None, ind=0):
+        start = time.process_time()
         if normal_list == None:
             img = image[0].cuda(non_blocking=True)                                              # image -> (9,32,3,240,240) ; img -> (32,3,240,240)
             normal_image = image[1:]                                                    
@@ -622,10 +624,12 @@ class InCTRL(nn.Module):
         peek_list = []
         _count = 0
         for i in range(len(token)):                                         # 32 iterations
+            start2 = time.process_time()
+
             Fp = Fp_list[i, :, :, :]                                                            # Fp -> (3, 225, 896)             
             Fp_n = Fp_list_n[i, :, :, :]                                                        # Fp_n -> (3, 225*8=1800, 896)
 
-            Fp_map = list()                                                                     
+            _Fp_map = list()                                                                     
             for j in range(len(Fp)):                                        # 3 iterations
                 tmp_x = Fp[j, :, :]                                                             # tmp_x -> (225, 896)
                 tmp_n = Fp_n[j, :, :]                                                           # tmp_n -> (1800, 896)
@@ -639,27 +643,12 @@ class InCTRL(nn.Module):
                 s_min, _ = s.min(dim=-1)                                                        # s_min -> (225, 1)
 
                 _Fp_map.append(s_min.squeeze(-1))
-                # am_fp = list()                                                                  
-                # for k in range(len(tmp_x)):                                 # 225 iterations
-                #     tmp = tmp_x[k]                                                              # tmp -> (896)
-                #     _tmpN = _tmp_n[k]                                                            # _tmpN -> (8, 896)
-
-                #     tmp = tmp.unsqueeze(0)                                                      # tmp -> (1,896)
-
-                #     # tmp_n = tmp_n / tmp_n.norm(dim=-1, keepdim=True)                          # tmp_n -> (225*8, 896) 
-                #     _tmpN = _tmpN / _tmpN.norm(dim=-1, keepdim=True)                            # _tmpN -> (8, 896) 
-                #     tmp = tmp / tmp.norm(dim=-1, keepdim=True)                                  # tmp -> (1,896)
-                    
-                #     # s = (0.5 * (1 - (tmp @ tmp_n.T))).min(dim=1).values                         # s -> (1) (like: 0.0542)
-                #     s = (0.5 * (1 - (tmp @ _tmpN.T))).min(dim=1).values                         # s -> (1) (like: 0.0542)
-                #     am_fp.append(s)                                                             # am_fp (finally) -> (225) list of tmp tensor results
-                # am_fp = torch.stack(am_fp)                                                      # am_fp -> (225,1)
-                # Fp_map.append(am_fp)                                                            # Fp_map (finally) -> (3, 225, 1)
-            _Fp_map = torch.stack(Fp_map)                                                       # _Fp_map -> (3, 225, 1)
-            peek_list.append(_Fp_map)
-            Fp_map = torch.mean(_Fp_map.squeeze(2), dim=0)                                      # Fp_map -> (225)
+    
+            _Fp_map = torch.stack(_Fp_map)                                                       # _Fp_map -> (3, 225, 1)
+            # peek_list.append(_Fp_map)
+            Fp_map = torch.mean(_Fp_map, dim=0)                                      # Fp_map -> (225)
             
-            self.peek_localization(peek_list, img, ind, b, _count)
+            # self.peek_localization(peek_list, img, ind, b, _count)
             _count+=1
 
             patch_ref_map.append(Fp_map)                                                        # patch_ref_map (finally) -> (32, 225) ?
@@ -703,6 +692,7 @@ class InCTRL(nn.Module):
 
         img_ref_score = img_ref_score.squeeze(1)                                                # img_ref_score -> (32)
         # print(f"final_score: {final_score}, img_ref_score: {img_ref_score}")
+        print(time.process_time()-start)
         return final_score, img_ref_score
 
 class CustomTextCLIP(nn.Module):
