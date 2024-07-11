@@ -632,21 +632,11 @@ class InCTRL(nn.Module):
 
     def forward(self, tokenizer, image: Optional[torch.Tensor] = None, text: Optional[torch.Tensor] = None, normal_list = None, ind = None):
         start = time.process_time()
-        if normal_list == None:
-            img = image[0].cuda(non_blocking=True)                                              # image -> (9,32,3,240,240) ; img -> (32,3,240,240)
-            normal_image = image[1:]                                                    
-            normal_image = torch.stack(normal_image)                                            # normal_image -> (8,32,3,240,240)
-            shot, b, _, _, _ = normal_image.shape                                               # shot = 8 ; b = 32
-            normal_image = normal_image.reshape(-1, 3, 240, 240).cuda(non_blocking=True)        # normal_image -> (8*32=256, 3,240,240)
-        else:
-            img = image[0].cuda(non_blocking=True)
-            normal_image = normal_list
-            normal_image = torch.stack(normal_image)
-            normal_image = normal_image.unsqueeze(1)
-            b = len(img)
-            normal_image = normal_image.repeat(1, b, 1, 1, 1)
-            shot, _, _, _, _ = normal_image.shape
-            normal_image = normal_image.reshape(-1, 3, 240, 240).cuda(non_blocking=True)
+        img = image[0].cuda(non_blocking=True)                                              # image -> (9,32,3,240,240) ; img -> (32,3,240,240)
+        normal_image = image[1:]                                                    
+        normal_image = torch.stack(normal_image)                                            # normal_image -> (8,32,3,240,240)
+        shot, b, _, _, _ = normal_image.shape                                               # shot = 8 ; b = 32
+        normal_image = normal_image.reshape(-1, 3, 240, 240).cuda(non_blocking=True)        # normal_image -> (8*32=256, 3,240,240)
 
         token, Fp_list, Fp = self.encode_image(img, normalize=False)                            # token, Fp_list, Fp -> (32,640), (3, 32, 226, 896), (32, 226, 896) -> Fp not used ? (12th layer)
         token_n, Fp_list_n, Fp_n = self.encode_image(normal_image, normalize=False)             # token_n, Fp_list_n, Fp_n -> (256,640), (3,8*32=256,226,896), (8*32=256, 226, 896) -> Fp_n not used ? (12th layer)
@@ -679,7 +669,7 @@ class InCTRL(nn.Module):
             Fp_n = Fp_n / Fp_n.norm(dim=-1, keepdim=True)  # Normalize Fp_n once
 
             # Vectorize the inner loops
-            s = 0.5 * (1 - torch.matmul(Fp, Fp_n.transpose(-1, -2)))  # Compute the cosine similarities
+            s = 0.5 * (1 - torch.matmul(Fp, Fp_n.transpo2se(-1, -2)))  # Compute the cosine similarities
             am_fp = s.min(dim=-1).values  # Get the minimum values along the last dimension
             Fp_map = torch.mean(am_fp, dim=0)  # Average over the channels
             
@@ -713,57 +703,6 @@ class InCTRL(nn.Module):
             tmp = score[0, 1]  # Anomaly score
             text_score.append(tmp)
 
-        # for i in range(len(token)):                                         # 32 iterations
-        #     start2 = time.process_time()
-        #     Fp = Fp_list[i, :, :, :]                                                            # Fp -> (3, 225, 896)             
-        #     Fp_n = Fp_list_n[i, :, :, :]                                                        # Fp_n -> (3, 225*8=1800, 896)
-
-        #     Fp_map = list()                                                                     
-        #     for j in range(len(Fp)):                                        # 3 iterations
-        #         tmp_x = Fp[j, :, :]                                                             # tmp_x -> (225, 896)
-        #         tmp_n = Fp_n[j, :, :]                                                           # tmp_n -> (1800, 896)
-        #                                                                                         # here                                                                               
-        #         am_fp = list()                                                                  
-        #         for k in range(len(tmp_x)):
-        #             tmp = tmp_x[k]                                                              # tmp -> (896)
-        #             tmp = tmp.unsqueeze(0)                                                      # tmp -> (1,896)
-        #             tmp_n = tmp_n / tmp_n.norm(dim=-1, keepdim=True)                            # tmp_n -> (225*8, 896) 
-        #             tmp = tmp / tmp.norm(dim=-1, keepdim=True)                                  # tmp -> (1,896)
-        #             s = (0.5 * (1 - (tmp @ tmp_n.T))).min(dim=1).values                         # tmp -> (1) (like: 0.0542)
-        #             am_fp.append(s)                                                             # am_fp (finally) -> (225) list of tmp tensor results
-        #         am_fp = torch.stack(am_fp)                                                      # am_fp -> (225,1)
-        #         Fp_map.append(am_fp)                                                            # Fp_map (finally) -> (3, 225, 1)
-        #     Fp_map = torch.stack(Fp_map)                                                        # Fp_map -> (3, 225, 1)
-        #     Fp_map = torch.mean(Fp_map.squeeze(2), dim=0)                                      # Fp_map -> (225)
-        #     # blockPrint()
-        #     # self.peek_localization(Fp_map, img[i])
-        #     # enablePrint()
-        #     patch_ref_map.append(Fp_map)                                                        # patch_ref_map (finally) -> (32, 225) ?
-        #     score = Fp_map.max(dim=0).values                                                    # score -> (1) (like: 0.1792)
-        #     max_diff_score.append(score)                                                        # max_diff_score (finally) -> (32, 1) ?
-        #     # print("score: ",score)
-
-        #     # zero shot
-        #     image_feature = token[i]                                                            # image_feature -> (640)
-        #     image_feature = image_feature.unsqueeze(0)                                          # image_feature -> (1, 640)
-        #     image_feature = image_feature / image_feature.norm(dim=-1, keepdim=True)            # image_feature -> (1, 640)
-
-        #     obj_type = text[i]                                                                  # text -> list of strings (32) (like: 'Visa_pcb2'); obj_type -> string (like: 'Visa_pcb2')
-        #     normal_texts, anomaly_texts = get_texts(obj_type.replace('_', " "))                 # normal_texts -> list of strings (154) (like: 'a photo of the perfect Visa pcb2.','a dark photo of a Visa pcb2 without flaw.','a blurry photo of a Visa pcb2 without flaw.','a cropped photo of a Visa pcb2 without flaw.','a photo of a small Visa pcb2.','a photo of a large Visa pcb2.','a jpeg corrupted photo of a Visa pcb2.',); anomaly_texts -> list of strings (88) (like: 'a photo of a damaged Visa pcb2 for anomaly detection.','a jpeg corrupted photo of a Visa pcb2 with damage.','a blurry photo of a Visa pcb2 with defect.','a photo of the Visa pcb2 with defect for visual inspection.')
-        #     pos_features = tokenizer(normal_texts).cuda()                                       # pos_features -> (154, 77)
-        #     neg_features = tokenizer(anomaly_texts).cuda()                                      # neg_features -> (88, 77)
-        #     pos_features = self.encode_text(pos_features)                                       # pos_features -> (154, 640)
-        #     neg_features = self.encode_text(neg_features)                                       # neg_features -> (88, 640)
-        #     pos_features = pos_features / pos_features.norm(dim=-1, keepdim=True)               # pos_features -> (154, 640)
-        #     neg_features = neg_features / neg_features.norm(dim=-1, keepdim=True)               # neg_features -> (88, 640)
-        #     pos_features = torch.mean(pos_features, dim=0, keepdim=True)                        # pos_features -> (1, 640)
-        #     neg_features = torch.mean(neg_features, dim=0, keepdim=True)                        # neg_features -> (1, 640)
-        #     pos_features = pos_features / pos_features.norm(dim=-1, keepdim=True)               # pos_features -> (1, 640)
-        #     neg_features = neg_features / neg_features.norm(dim=-1, keepdim=True)               # neg_features -> (1, 640)
-        #     text_features = torch.cat([pos_features, neg_features], dim=0)                      # text_features -> (2,640)
-        #     score = (100 * image_feature @ text_features.T).softmax(dim=-1)                     # score -> (2,1) (like:[.8761, .1239])
-        #     tmp = score[0, 1]                                                                   # tmp -(1) -> (like : .1239) > it takes the negative feature (anomaly score)
-        #     text_score.append(tmp)                                                              # text_score (final) -> (32) -> (like: [.1239, ...])
         anomaly_localisation_maps = 0
         for i in range(Fp_list.shape[1]): 
             anomaly_localisation_maps += self.convOperation(torch.cat((torch.stack(patch_ref_map).reshape(b,15,15).unsqueeze(-1), Fp_list[:, i, :, :].reshape(b, 15, 15, 896)), dim=-1))

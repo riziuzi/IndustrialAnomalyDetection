@@ -9,7 +9,7 @@ from torch.utils.data.distributed import DistributedSampler
 from torch.utils.data.sampler import RandomSampler
 from .Sampler import DistributedSamplerWrapper
 from .new_utlis import worker_init_fn_seed, BalancedBatchSampler
-
+import open_clip
 from .build import build_dataset
 import open_clip.utils.misc as misc
 import numpy as np
@@ -94,6 +94,51 @@ def construct_loader(cfg, split, transform):
 
     return loader
 
+# def custom_collate_fn(batch):
+#     """
+#     Collate function for repeated augmentation and text preprocessing. Each instance in the batch has
+#     more than one sample.
+#     Args:
+#         batch (tuple or list): data batch to collate.
+#     Returns:
+#         (tuple): collated data batch.
+#     """
+#     tokenizer = open_clip.get_tokenizer('ViT-B-16-plus-240')
+#     inputs, targets, labels, masks, texts = zip(*batch)
+
+#     labels = torch.tensor([i for i in labels])
+
+#     stacked_inputs = torch.stack([torch.stack(batch) for batch in inputs])
+#     transposed_inputs = stacked_inputs.transpose(0, 1)
+#     inputs = [tensor for tensor in transposed_inputs]
+
+#     targets = [i for i in targets]
+#     masks = torch.stack([i for i in masks])
+
+#     # Process images
+#     img = inputs[0].cuda(non_blocking=True)  # img -> (32, 3, 240, 240)
+#     normal_image = inputs[1:]
+#     normal_image = torch.stack(normal_image)  # normal_image -> (8, 32, 3, 240, 240)
+#     shot, b, _, _, _ = normal_image.shape  # shot = 8; b = 32
+#     normal_image = normal_image.reshape(-1, 3, 240, 240).cuda(non_blocking=True)  # normal_image -> (8*32=256, 3, 240, 240)
+
+#     # Process texts
+#     pos_texts_list = []
+#     neg_texts_list = []
+
+#     for text in texts:
+#         obj_type = text.replace('_', " ")
+#         normal_texts, anomaly_texts = get_texts(obj_type)
+
+#         pos_tokens = tokenizer(normal_texts)  # pos_tokens -> (154, 77)
+#         neg_tokens = tokenizer(anomaly_texts)  # neg_tokens -> (88, 77)
+
+#         pos_texts_list.append(pos_tokens)
+#         neg_texts_list.append(neg_tokens)
+
+#     return (img, normal_image, pos_texts_list, neg_texts_list), targets, labels, masks
+
+
 def custom_collate_fn(batch):
     """
     Collate function for repeated augmentation. Each instance in the batch has
@@ -103,6 +148,7 @@ def custom_collate_fn(batch):
     Returns:
         (tuple): collated data batch.
     """
+    tokenizer = open_clip.get_tokenizer('ViT-B-16-plus-240')
     inputs, targets, labels, masks = zip(*batch)
 
     labels = torch.tensor([i for i in labels])
