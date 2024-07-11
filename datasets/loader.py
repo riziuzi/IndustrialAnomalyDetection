@@ -13,7 +13,7 @@ import open_clip
 from .build import build_dataset
 import open_clip.utils.misc as misc
 import numpy as np
-
+from utils import get_texts
 
 def multiple_samples_collate(batch):
     """
@@ -72,6 +72,8 @@ def construct_loader(cfg, split, transform):
     else:
         collate_func = None
 
+
+    text_cache = TextCache()
     # Create a loader
     if split in ["train"]:
         loader = torch.utils.data.DataLoader(
@@ -79,7 +81,7 @@ def construct_loader(cfg, split, transform):
             worker_init_fn=worker_init_fn_seed,
             batch_sampler = BalancedBatchSampler(cfg, dataset),  # sampler=sampler,
             num_workers=cfg.DATA_LOADER.NUM_WORKERS,
-            collate_fn=custom_collate_fn
+            collate_fn=lambda batch : custom_collate_fn(batch=batch, text_cache=text_cache)
         )
     else:
         loader = torch.utils.data.DataLoader(
@@ -89,66 +91,33 @@ def construct_loader(cfg, split, transform):
             num_workers=cfg.DATA_LOADER.NUM_WORKERS,
             pin_memory=cfg.DATA_LOADER.PIN_MEMORY,
             drop_last=False,
-            collate_fn=custom_collate_fn,
+            collate_fn=lambda batch : custom_collate_fn(batch=batch, text_cache=text_cache)
         )
 
     return loader
 
-# def custom_collate_fn(batch):
-#     """
-#     Collate function for repeated augmentation and text preprocessing. Each instance in the batch has
-#     more than one sample.
-#     Args:
-#         batch (tuple or list): data batch to collate.
-#     Returns:
-#         (tuple): collated data batch.
-#     """
-#     tokenizer = open_clip.get_tokenizer('ViT-B-16-plus-240')
-#     inputs, targets, labels, masks, texts = zip(*batch)
+class TextCache:
+    def __init__(self):
+        self.cache = {}
+        self.tokenizer = open_clip.get_tokenizer('ViT-B-16-plus-240')
 
-#     labels = torch.tensor([i for i in labels])
+    def get_tokens(self, text):
+        if text not in self.cache:
+            normal_texts, anomaly_texts = get_texts(text)
+            pos_tokens = self.tokenizer(normal_texts)  # pos_tokens -> (154, 77)
+            neg_tokens = self.tokenizer(anomaly_texts)  # neg_tokens -> (88, 77)
+            self.cache[text] = (pos_tokens, neg_tokens)
+        return self.cache[text]
 
-#     stacked_inputs = torch.stack([torch.stack(batch) for batch in inputs])
-#     transposed_inputs = stacked_inputs.transpose(0, 1)
-#     inputs = [tensor for tensor in transposed_inputs]
-
-#     targets = [i for i in targets]
-#     masks = torch.stack([i for i in masks])
-
-#     # Process images
-#     img = inputs[0].cuda(non_blocking=True)  # img -> (32, 3, 240, 240)
-#     normal_image = inputs[1:]
-#     normal_image = torch.stack(normal_image)  # normal_image -> (8, 32, 3, 240, 240)
-#     shot, b, _, _, _ = normal_image.shape  # shot = 8; b = 32
-#     normal_image = normal_image.reshape(-1, 3, 240, 240).cuda(non_blocking=True)  # normal_image -> (8*32=256, 3, 240, 240)
-
-#     # Process texts
-#     pos_texts_list = []
-#     neg_texts_list = []
-
-#     for text in texts:
-#         obj_type = text.replace('_', " ")
-#         normal_texts, anomaly_texts = get_texts(obj_type)
-
-#         pos_tokens = tokenizer(normal_texts)  # pos_tokens -> (154, 77)
-#         neg_tokens = tokenizer(anomaly_texts)  # neg_tokens -> (88, 77)
-
-#         pos_texts_list.append(pos_tokens)
-#         neg_texts_list.append(neg_tokens)
-
-#     return (img, normal_image, pos_texts_list, neg_texts_list), targets, labels, masks
-
-
-def custom_collate_fn(batch):
+def custom_collate_fn(batch, text_cache):
     """
-    Collate function for repeated augmentation. Each instance in the batch has
+    Collate function for repeated augmentation and text preprocessing. Each instance in the batch has
     more than one sample.
     Args:
         batch (tuple or list): data batch to collate.
     Returns:
         (tuple): collated data batch.
     """
-    tokenizer = open_clip.get_tokenizer('ViT-B-16-plus-240')
     inputs, targets, labels, masks = zip(*batch)
 
     labels = torch.tensor([i for i in labels])
@@ -157,13 +126,55 @@ def custom_collate_fn(batch):
     transposed_inputs = stacked_inputs.transpose(0, 1)
     inputs = [tensor for tensor in transposed_inputs]
 
-    targets = [i for i in targets]
-    
+    # targets = [i for i in targets]
     masks = torch.stack([i for i in masks])
 
-    # inputs, targets, labels, masks = default_collate(inputs), default_collate(targets), default_collate(labels), default_collate(masks)
+    # Process images
+    img = inputs[0]  # img -> (32, 3, 240, 240)
+    normal_image = inputs[1:]                                       # cant initialize cuda context in fork() subprocess of workers, so cant change to cuda here
+    normal_image = torch.stack(normal_image)  # normal_image -> (8, 32, 3, 240, 240)
+    shot, b, _, _, _ = normal_image.shape  # shot = 8; b = 32
+    normal_image = normal_image.reshape(-1, 3, 240, 240)            # normal_image -> (8*32=256, 3, 240, 240)
 
-    return inputs, targets, labels, masks
+    # Process texts
+    pos_texts_list = []
+    neg_texts_list = []
+
+    for text in targets:
+        obj_type = text.replace('_', " ")
+        pos_tokens, neg_tokens = text_cache.get_tokens(obj_type)
+        pos_texts_list.append(pos_tokens)
+        neg_texts_list.append(neg_tokens)
+    pos_texts_list = torch.stack(pos_texts_list, dim=0)
+    neg_texts_list = torch.stack(neg_texts_list, dim=0)                                               # cant initialize cuda context in fork() subprocess of workers, so cant change to cuda here
+    return (img, normal_image, pos_texts_list, neg_texts_list, shot, b), targets, labels, masks
+
+
+
+# def custom_collate_fn(batch):
+#     """
+#     Collate function for repeated augmentation. Each instance in the batch has
+#     more than one sample.
+#     Args:
+#         batch (tuple or list): data batch to collate.
+#     Returns:
+#         (tuple): collated data batch.
+#     """
+#     inputs, targets, labels, masks = zip(*batch)
+
+#     labels = torch.tensor([i for i in labels])
+
+#     stacked_inputs = torch.stack([torch.stack(batch) for batch in inputs])
+#     transposed_inputs = stacked_inputs.transpose(0, 1)
+#     inputs = [tensor for tensor in transposed_inputs]
+
+#     targets = [i for i in targets]
+    
+#     masks = torch.stack([i for i in masks])
+
+#     # inputs, targets, labels, masks = default_collate(inputs), default_collate(targets), default_collate(labels), default_collate(masks)
+
+#     return inputs, targets, labels, masks
 
 def shuffle_dataset(loader, cur_epoch):
     """ "

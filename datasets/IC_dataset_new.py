@@ -18,7 +18,8 @@ import logging
 from torchvision import transforms
 from PIL import Image
 import numpy as np
-
+import open_clip
+from utils import get_texts
 from torchvision import utils as vutils
 
 import torch
@@ -146,4 +147,5 @@ class IC_dataset(VisionDataset):
         return image_list, image_type, label, mask
     def __len__(self) -> int:
         return len(self.image)
+
 

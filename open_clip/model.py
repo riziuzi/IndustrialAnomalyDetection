@@ -124,56 +124,6 @@ def get_input_dtype(precision: str):
         input_dtype = torch.float16
     return input_dtype
 
-state_level = {
-               "normal":["{}", "flawless {}", "perfect {}", "unblemished {}",
-                         "{} without flaw", "{} without defect", "{} without damage"],
-                "anomaly":["damaged {}", "{} with flaw", "{} with defect", "{} with damage"]
-}
-template_level = [
-                  "a cropped photo of the {}.",
-                  "a cropped photo of a {}.",
-                  "a close-up photo of a {}.",
-                  "a close-up photo of the {}.",
-                  "a bright photo of a {}.",
-                  "a bright photo of the {}.",
-                  "a dark photo of a {}.",
-                  "a dark photo of the {}.",
-                  "a jpeg corrupted photo of a {}.",
-                  "a jpeg corrupted photo of the {}.",
-                  "a blurry photo of the {}.",
-                  "a blurry photo of a {}.",
-                  "a photo of the {}.",
-                  "a photo of a {}.",
-                  "a photo of a small {}.",
-                  "a photo of the small {}.",
-                  "a photo of a large {}.",
-                  "a photo of the large {}.",
-                  "a photo of a {} for visual inspection.",
-                  "a photo of the {} for visual inspection.",
-                  "a photo of a {} for anomaly detection.",
-                  "a photo of the {} for anomaly detection."
-]
-
-def get_texts(obj_name):
-
-    l = ["airplane", "automobile", "bird",
-         "cat", "deer", "dog", "frog", "horse", "ship", "truck", "animal"]
-
-    if obj_name in l:
-        normal_texts = []
-        anomaly_texts = []
-        normal = "a photo of " + obj_name + " for anomaly detection."
-        normal_texts.append(normal)
-        anomaly = "a photo without " + obj_name + " for anomaly detection."
-        anomaly_texts.append(anomaly)
-    else:
-        normal_states = [s.format(obj_name) for s in state_level["normal"]]
-        anomaly_states = [s.format(obj_name) for s in state_level["anomaly"]]
-
-        normal_texts = [t.format(state) for state in normal_states for t in template_level]
-        anomaly_texts = [t.format(state) for state in anomaly_states for t in template_level]
-
-    return normal_texts, anomaly_texts
 
 
 def _build_vision_tower(
@@ -593,9 +543,11 @@ class InCTRL(nn.Module):
         x = self.token_embedding(text).to(cast_dtype)  # [batch_size, n_ctx, d_model]
 
         x = x + self.positional_embedding.to(cast_dtype)
-        x = x.permute(1, 0, 2)  # NLD -> LND
+        # x = x.permute(2, 0, 1, 3)  
+        x = x.view(-1, x.size(1), x.size(3))            # [n_texts, batch_size, n_ctx, d_model]  # NLD -> LND
         x = self.transformer(x, attn_mask=self.attn_mask)
-        x = x.permute(1, 0, 2)  # LND -> NLD
+        x = x.view(text.size(0), text.size(2), text.size(1), x.size(-1))  # [batch_size, n_texts, n_ctx, d_model]
+        # x = x.permute(1, 2, 0, 3)  # [batch_size, n_ctx, n_texts, d_model] # LND -> NLD
         x = self.ln_final(x)  # [batch_size, n_ctx, transformer.width]
         # take features from the eot embedding (eot_token is the highest number in each sequence)
         x = x[torch.arange(x.shape[0]), text.argmax(dim=-1)] @ self.text_projection
@@ -630,13 +582,11 @@ class InCTRL(nn.Module):
 
     
 
-    def forward(self, tokenizer, image: Optional[torch.Tensor] = None, text: Optional[torch.Tensor] = None, normal_list = None, ind = None):
+    def forward(self, inputs: Optional[torch.Tensor] = None, ind = None):
         start = time.process_time()
-        img = image[0].cuda(non_blocking=True)                                              # image -> (9,32,3,240,240) ; img -> (32,3,240,240)
-        normal_image = image[1:]                                                    
-        normal_image = torch.stack(normal_image)                                            # normal_image -> (8,32,3,240,240)
-        shot, b, _, _, _ = normal_image.shape                                               # shot = 8 ; b = 32
-        normal_image = normal_image.reshape(-1, 3, 240, 240).cuda(non_blocking=True)        # normal_image -> (8*32=256, 3,240,240)
+        img = inputs[0].cuda(non_blocking=True)                                                                # image -> (9,32,3,240,240) ; img -> (32,3,240,240)
+        shot, b = inputs[-2], inputs[-1]                                            # shot = 8 ; b = 32
+        normal_image = inputs[1].cuda(non_blocking=True)                # normal_image -> (8*32=256, 3,240,240)
 
         token, Fp_list, Fp = self.encode_image(img, normalize=False)                            # token, Fp_list, Fp -> (32,640), (3, 32, 226, 896), (32, 226, 896) -> Fp not used ? (12th layer)
         token_n, Fp_list_n, Fp_n = self.encode_image(normal_image, normalize=False)             # token_n, Fp_list_n, Fp_n -> (256,640), (3,8*32=256,226,896), (8*32=256, 226, 896) -> Fp_n not used ? (12th layer)
@@ -657,57 +607,99 @@ class InCTRL(nn.Module):
         token_n = torch.mean(token_n, dim=1)                                                    # token_n -> (32, 640)
         token_ref = token_n - token_ad                                      # In context image level residual features # token_ref -> (32, 640)
 
-        text_score = []                                                                         # 
-        max_diff_score = []
-        patch_ref_map = []
-        for i in range(len(token)):  # 32 iterations
-            start2 = time.process_time()
-            Fp = Fp_list[i, :, :, :]  # Fp -> (3, 225, 896)
-            Fp_n = Fp_list_n[i, :, :, :]  # Fp_n -> (3, 1800, 896)
-            
-            Fp = Fp / Fp.norm(dim=-1, keepdim=True)  # Normalize Fp once
-            Fp_n = Fp_n / Fp_n.norm(dim=-1, keepdim=True)  # Normalize Fp_n once
+        # text_score = []                                                                         # 
+        # max_diff_score = []
+        # patch_ref_map = []
+        # Patch level residual computations (Modified)
+        Fp_list = Fp_list / Fp_list.norm(dim=-1, keepdim=True)
+        Fp_list_n = Fp_list_n / Fp_list_n.norm(dim=-1, keepdim=True)
 
-            # Vectorize the inner loops
-            s = 0.5 * (1 - torch.matmul(Fp, Fp_n.transpo2se(-1, -2)))  # Compute the cosine similarities
-            am_fp = s.min(dim=-1).values  # Get the minimum values along the last dimension
-            Fp_map = torch.mean(am_fp, dim=0)  # Average over the channels
-            
-            patch_ref_map.append(Fp_map)  # Fp_map -> (225)
-            score = Fp_map.max()  # Get the max score
-            max_diff_score.append(score)  # max_diff_score -> (32, 1)
-            
-            # Zero shot
-            image_feature = token[i].unsqueeze(0)  # image_feature -> (1, 640)
-            image_feature = image_feature / image_feature.norm(dim=-1, keepdim=True)  # Normalize image feature
+        s = 0.5 * (1 - torch.matmul(Fp_list, Fp_list_n.transpose(-1, -2)))  # s -> (32, 3, 225, 1800)
+        am_fp = s.min(dim=-1).values  # am_fp -> (32, 3, 225)
+        Fp_map = torch.mean(am_fp, dim=1)  # Fp_map -> (32, 225)
+        
+        max_diff_score = Fp_map.max(dim=-1).values  # max_diff_score -> (32)
+        patch_ref_map = Fp_map                      # patch_ref_map -> (32, 225)
 
-            obj_type = text[i]
-            normal_texts, anomaly_texts = get_texts(obj_type.replace('_', " "))
-            pos_features = tokenizer(normal_texts).cuda()  # pos_features -> (154, 77)
-            neg_features = tokenizer(anomaly_texts).cuda()  # neg_features -> (88, 77)
-            
-            pos_features = self.encode_text(pos_features)  # pos_features -> (154, 640)
-            neg_features = self.encode_text(neg_features)  # neg_features -> (88, 640)
-            
-            pos_features = pos_features / pos_features.norm(dim=-1, keepdim=True)  # Normalize pos features
-            neg_features = neg_features / neg_features.norm(dim=-1, keepdim=True)  # Normalize neg features
-            
-            pos_features = torch.mean(pos_features, dim=0, keepdim=True)  # Mean pos features
-            neg_features = torch.mean(neg_features, dim=0, keepdim=True)  # Mean neg features
-            
-            pos_features = pos_features / pos_features.norm(dim=-1, keepdim=True)  # Normalize mean pos features
-            neg_features = neg_features / neg_features.norm(dim=-1, keepdim=True)  # Normalize mean neg features
-            
-            text_features = torch.cat([pos_features, neg_features], dim=0)  # text_features -> (2, 640)
-            score = (100 * image_feature @ text_features.T).softmax(dim=-1)  # Compute softmax score
-            tmp = score[0, 1]  # Anomaly score
-            text_score.append(tmp)
 
-        anomaly_localisation_maps = 0
-        for i in range(Fp_list.shape[1]): 
-            anomaly_localisation_maps += self.convOperation(torch.cat((torch.stack(patch_ref_map).reshape(b,15,15).unsqueeze(-1), Fp_list[:, i, :, :].reshape(b, 15, 15, 896)), dim=-1))
-        anomaly_localisation_maps/=Fp_list.shape[1]                                             # taking average as I just want to test -> ()
-        save_images_and_localisation(img, anomaly_localisation_maps, save_dir=f"./TEST/{ind}")
+        image_feature = token / token.norm(dim=-1, keepdim=True)  # image_feature -> (32, 640)
+
+        # freeing up memory -> can I use with?
+        del token, token_ad, Fp, Fp_n
+        del token_n
+        del Fp_list
+        del Fp_list_n
+        del am_fp
+        del s, img, normal_image
+
+
+
+        pos_tokens = inputs[2].cuda()  # pos_tokens -> (32, 154, 77)
+        neg_tokens = inputs[3].cuda()  # neg_tokens -> (32, 88, 77)
+
+        pos_features = self.encode_text(pos_tokens)  # pos_features -> (32, 154, 640)
+        neg_features = self.encode_text(neg_tokens)  # neg_features -> (32, 88, 640)
+        
+        # pos_features = pos_features / pos_features.norm(dim=-1, keepdim=True)
+        # neg_features = neg_features / neg_features.norm(dim=-1, keepdim=True)
+        
+        pos_features = torch.mean(pos_features, dim=1, keepdim=True)  # pos_features -> (32, 1, 640)
+        neg_features = torch.mean(neg_features, dim=1, keepdim=True)  # neg_features -> (32, 1, 640)
+        
+        pos_features = pos_features / pos_features.norm(dim=-1, keepdim=True)
+        neg_features = neg_features / neg_features.norm(dim=-1, keepdim=True)
+        
+        text_features = torch.cat([pos_features, neg_features], dim=1)                # text_features -> (32, 2, 640)
+        scores = (100 * image_feature.unsqueeze(1) @ text_features.transpose(-1, -2)).softmax(dim=-1)  # scores -> (32, 1, 2)
+        text_score = scores[:, 0, 1]  # text_scores -> (32)
+        # for i in range(len(token)):  # 32 iterations
+        #     start2 = time.process_time()
+        #     Fp = Fp_list[i, :, :, :]  # Fp -> (3, 225, 896)
+        #     Fp_n = Fp_list_n[i, :, :, :]  # Fp_n -> (3, 1800, 896)
+            
+        #     Fp = Fp / Fp.norm(dim=-1, keepdim=True)  # Normalize Fp once
+        #     Fp_n = Fp_n / Fp_n.norm(dim=-1, keepdim=True)  # Normalize Fp_n once
+
+        #     # Vectorize the inner loops
+        #     s = 0.5 * (1 - torch.matmul(Fp, Fp_n.transpo2se(-1, -2)))  # Compute the cosine similarities
+        #     am_fp = s.min(dim=-1).values  # Get the minimum values along the last dimension
+        #     Fp_map = torch.mean(am_fp, dim=0)  # Average over the channels
+            
+        #     patch_ref_map.append(Fp_map)  # Fp_map -> (225)
+        #     score = Fp_map.max()  # Get the max score
+        #     max_diff_score.append(score)  # max_diff_score -> (32, 1)
+            
+        #     # Zero shot
+        #     image_feature = token[i].unsqueeze(0)  # image_feature -> (1, 640)
+        #     image_feature = image_feature / image_feature.norm(dim=-1, keepdim=True)  # Normalize image feature
+
+        #     obj_type = text[i]
+        #     normal_texts, anomaly_texts = get_texts(obj_type.replace('_', " "))
+        #     pos_features = tokenizer(normal_texts).cuda()  # pos_features -> (154, 77)
+        #     neg_features = tokenizer(anomaly_texts).cuda()  # neg_features -> (88, 77)
+            
+        #     pos_features = self.encode_text(pos_features)  # pos_features -> (154, 640)
+        #     neg_features = self.encode_text(neg_features)  # neg_features -> (88, 640)
+            
+        #     pos_features = pos_features / pos_features.norm(dim=-1, keepdim=True)  # Normalize pos features
+        #     neg_features = neg_features / neg_features.norm(dim=-1, keepdim=True)  # Normalize neg features
+            
+        #     pos_features = torch.mean(pos_features, dim=0, keepdim=True)  # Mean pos features
+        #     neg_features = torch.mean(neg_features, dim=0, keepdim=True)  # Mean neg features
+            
+        #     pos_features = pos_features / pos_features.norm(dim=-1, keepdim=True)  # Normalize mean pos features
+        #     neg_features = neg_features / neg_features.norm(dim=-1, keepdim=True)  # Normalize mean neg features
+            
+        #     text_features = torch.cat([pos_features, neg_features], dim=0)  # text_features -> (2, 640)
+        #     score = (100 * image_feature @ text_features.T).softmax(dim=-1)  # Compute softmax score
+        #     tmp = score[0, 1]  # Anomaly score
+        #     text_score.append(tmp)
+
+        # anomaly_localisation_maps = 0
+        # for i in range(Fp_list.shape[1]): 
+        #     anomaly_localisation_maps += self.convOperation(torch.cat((torch.stack(patch_ref_map).reshape(b,15,15).unsqueeze(-1), Fp_list[:, i, :, :].reshape(b, 15, 15, 896)), dim=-1))
+        # anomaly_localisation_maps/=Fp_list.shape[1]                                             # taking average as I just want to test -> ()
+        # save_images_and_localisation(img, anomaly_localisation_maps, save_dir=f"./TEST/{ind}")
 
         text_score = torch.stack(text_score).unsqueeze(1)                                       # text_score -> (32,1)      
         img_ref_score = self.diff_head_ref.forward(token_ref)                                   # img_ref_score -> (32, 1)
@@ -723,7 +715,8 @@ class InCTRL(nn.Module):
         # print(f"final_score: {final_score}, img_ref_score: {img_ref_score}")
         # return final_score, img_ref_score
         print(time.process_time()-start)
-        return final_score, img_ref_score, anomaly_localisation_maps
+        return final_score, img_ref_score
+        # return final_score, img_ref_score, anomaly_localisation_maps
 
 class CustomTextCLIP(nn.Module):
     output_dict: torch.jit.Final[bool]
