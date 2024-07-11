@@ -27,7 +27,7 @@ from torchsummary import summary
 from torch.nn.modules.module import _addindent
 import progressbar
 import matplotlib.pyplot as plt
-from image_display import display_image
+from image_display import display_image, save_batch_images
 import torch
 from torch.utils.tensorboard import SummaryWriter
 logger = logging.get_logger(__name__)
@@ -78,7 +78,7 @@ def train_epoch(
         # Compute the loss.
         # loss = loss_fun(preds, labels.float()) + loss_fun(preds2, labels.float())
         loss = loss_fun(preds3, masks.float())
-
+        save_batch_images(inputs[0], labels, masks, types, save_path="batch_images_hd.png", grid_size=4, overlay=True)
         # check Nan Loss.
         misc.check_nan_losses(loss)
 

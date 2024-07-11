@@ -1,15 +1,3 @@
-# # image_display.py
-# from PIL import Image
-# import torchvision.transforms as transforms
-# import matplotlib.pyplot as plt
-
-# def display_image(inputs, save_path="output_image.png"):
-#     transform = transforms.ToPILImage()
-#     image = transform(inputs[-1])
-#     image.save(save_path)
-#     print(f"Image saved to {save_path}")
-
-
 import matplotlib.pyplot as plt
 import torch
 import torchvision.utils as vutils
@@ -18,6 +6,86 @@ from PIL import Image
 import torchvision.transforms as transforms
 import os
 import numpy as np
+
+
+def save_batch_images(inputs, labels, masks, types, save_path="batch_images.png", grid_size=4, overlay=True, palpha=0.3, mask_color=(1, 0, 0)):
+    """
+    Save a batch of images with their corresponding attributes (labels, masks, types) into a single PNG file.
+
+    Args:
+        inputs (torch.Tensor): Batch of images with shape (batch_size, 3, 240, 240).
+        labels (torch.Tensor): Batch of labels with shape (batch_size).
+        masks (torch.Tensor): Batch of masks with shape (batch_size, 1, 240, 240).
+        types (list): List of strings containing image names.
+        save_path (str): Path to save the output PNG file.
+        grid_size (int): Number of images per row/column in the grid.
+        overlay (bool): If True, overlay the mask on the image. If False, display image and mask side by side.
+        palpha (float): Transparency of the mask when overlaying. Default is 0.3.
+        mask_color (tuple): RGB color tuple for the mask overlay. Default is red.
+    """
+    batch_size = inputs.size(0)
+    assert batch_size == labels.size(0) == masks.size(0) == len(types), "Mismatched batch sizes"
+
+    # Convert images to numpy array with shape (batch_size, 240, 240, 3)
+    inputs = inputs.cpu().numpy().transpose(0, 2, 3, 1)
+
+    # Normalize the images to [0, 1] range based on the min and max of each image
+    min_vals = inputs.min(axis=(1, 2, 3), keepdims=True)
+    max_vals = inputs.max(axis=(1, 2, 3), keepdims=True)
+    inputs = (inputs - min_vals) / (max_vals - min_vals)
+
+    # Convert masks to numpy array with shape (batch_size, 240, 240)
+    masks = masks.cpu().numpy().squeeze(1)
+
+    # Set up the plot
+    if overlay:
+        fig, axes = plt.subplots(grid_size, grid_size, figsize=(20, 20))
+    else:
+        fig, axes = plt.subplots(grid_size, grid_size * 2, figsize=(40, 20))  # Double columns for side-by-side
+
+    axes = axes.flatten()
+
+    for i in range(batch_size):
+        img = inputs[i]
+        mask = masks[i]
+        label = labels[i].item()
+        img_type = types[i]
+
+        if overlay:
+            # Create a colored overlay for the mask
+            mask_overlay = np.zeros_like(img)
+            for c in range(3):  # Apply the color to the mask overlay
+                mask_overlay[:, :, c] = mask * mask_color[c]
+
+            # Combine the image with the mask overlay
+            combined_img = np.clip(img + (mask_overlay * palpha), 0, 1)
+
+            # Plot the combined image
+            axes[i].imshow(combined_img)
+            axes[i].set_title(f"Label: {label}, Type: {img_type}")
+            axes[i].axis('off')
+        else:
+            # Plot the image
+            axes[i * 2].imshow(img)
+            axes[i * 2].set_title(f"Label: {label}, Type: {img_type}")
+            axes[i * 2].axis('off')
+
+            # Plot the mask
+            mask_img = np.zeros_like(img)
+            mask_img[:, :, 0] = mask  # Use red channel for mask
+            axes[i * 2 + 1].imshow(mask_img, cmap='gray')
+            axes[i * 2 + 1].set_title("Mask")
+            axes[i * 2 + 1].axis('off')
+
+    # Remove empty subplots
+    for j in range(batch_size * 2 if not overlay else batch_size, len(axes)):
+        fig.delaxes(axes[j])
+
+    # Save the figure
+    plt.tight_layout()
+    plt.savefig(save_path, dpi=300)  # High-quality save
+    plt.close(fig)
+
 
 def peek_localization(array_3d_list, image_tensor_list, ind, b, _count):
         # Determine global min and max across all arrays in array_3d_list

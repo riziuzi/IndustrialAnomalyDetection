@@ -72,14 +72,15 @@ def construct_loader(cfg, split, transform):
     else:
         collate_func = None
 
-
+    sampler = RandomSampler(dataset)
     text_cache = TextCache()
     # Create a loader
     if split in ["train"]:
         loader = torch.utils.data.DataLoader(
             dataset,
             worker_init_fn=worker_init_fn_seed,
-            batch_sampler = BalancedBatchSampler(cfg, dataset),  # sampler=sampler,
+            batch_size=cfg.TRAIN.BATCH_SIZE,
+            sampler = sampler,
             num_workers=cfg.DATA_LOADER.NUM_WORKERS,
             collate_fn=lambda batch : custom_collate_fn(batch=batch, text_cache=text_cache)
         )
@@ -145,8 +146,8 @@ def custom_collate_fn(batch, text_cache):
         pos_tokens, neg_tokens = text_cache.get_tokens(obj_type)
         pos_texts_list.append(pos_tokens)
         neg_texts_list.append(neg_tokens)
-    pos_texts_list = torch.stack(pos_texts_list, dim=0)
-    neg_texts_list = torch.stack(neg_texts_list, dim=0)                                               # cant initialize cuda context in fork() subprocess of workers, so cant change to cuda here
+    pos_texts_list = torch.cat(pos_texts_list, dim=0)
+    neg_texts_list = torch.cat(neg_texts_list, dim=0)                                               # cant initialize cuda context in fork() subprocess of workers, so cant change to cuda here
     return (img, normal_image, pos_texts_list, neg_texts_list, shot, b), targets, labels, masks
 
 

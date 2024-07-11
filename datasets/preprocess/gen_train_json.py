@@ -34,7 +34,7 @@ def main(dataset_name, obj_name):
             path_dict["image_path"] = os.path.join(image_dir,obj_name, 'train', 'good', file)
             path_dict["target"] = 0
             path_dict["mask"] = os.path.join(args.dataset_dir,"normal_mask.PNG")
-            path_dict["type"] = args.dataset_name
+            path_dict["type"] = obj_name
             normal_output_dict.append(path_dict)
 
     normal_test_files = os.listdir(os.path.join(image_dir,obj_name, 'test', 'good'))                # why this into the training file?
@@ -45,7 +45,7 @@ def main(dataset_name, obj_name):
             path_dict["image_path"] = os.path.join(image_dir,obj_name, 'test', 'good', file)
             path_dict["target"] = 0
             path_dict["mask"] = os.path.join(args.dataset_dir,"normal_mask.PNG")
-            path_dict["type"] = args.dataset_name
+            path_dict["type"] = obj_name
             normal_output_dict.append(path_dict)
 
     outlier_output_dict = list()
@@ -69,7 +69,7 @@ def main(dataset_name, obj_name):
                 elif os.path.isfile(s[:-9]+".png"):
                     path_dict["mask"] = s[:-9]+".png"
                 else: return
-                path_dict["type"] = args.dataset_name
+                path_dict["type"] = obj_name
                 outlier_output_dict.append(path_dict)
 
     os.makedirs(os.path.dirname(save_path_normal), exist_ok=True)
