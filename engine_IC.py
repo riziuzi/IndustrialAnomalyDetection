@@ -71,7 +71,7 @@ def train_epoch(
             masks = masks.cuda()
         
         
-        preds, preds2, preds3 = model(inputs, None)
+        preds, preds2, preds3 = model(inputs,types, None)
         loss_fun = BinaryFocalLoss()
         loss_fun = loss_fun.cuda()
 

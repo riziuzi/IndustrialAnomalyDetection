@@ -146,8 +146,8 @@ def custom_collate_fn(batch, text_cache):
         pos_tokens, neg_tokens = text_cache.get_tokens(obj_type)
         pos_texts_list.append(pos_tokens)
         neg_texts_list.append(neg_tokens)
-    pos_texts_list = torch.cat(pos_texts_list, dim=0)
-    neg_texts_list = torch.cat(neg_texts_list, dim=0)                                               # cant initialize cuda context in fork() subprocess of workers, so cant change to cuda here
+    pos_texts_list = torch.stack(pos_texts_list, dim=0)
+    neg_texts_list = torch.stack(neg_texts_list, dim=0)                                               # cant initialize cuda context in fork() subprocess of workers, so cant change to cuda here
     return (img, normal_image, pos_texts_list, neg_texts_list, shot, b), targets, labels, masks
 
 

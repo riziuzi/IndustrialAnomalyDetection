@@ -515,6 +515,7 @@ class InCTRL(nn.Module):
         self.diff_head_ref = TransformerBasicHead(640, 1)
 
         self.convOperation = ConvOperationLayer(initial_channels=896+1, num_blocks=5, final_out_channels=1)
+        self.textEmbedding_cache = {}
 
         for p in self.visual.parameters():
             p.requires_grad = False
@@ -580,7 +581,7 @@ class InCTRL(nn.Module):
 
     
 
-    def forward(self, inputs: Optional[torch.Tensor] = None, ind = None):
+    def forward(self, inputs: Optional[torch.Tensor] = None, types: Optional[torch.Tensor] = None, ind = None):
         start1 = time.process_time()
         img = inputs[0].cuda(non_blocking=True)                                                                # image -> (9,32,3,240,240) ; img -> (32,3,240,240)
         shot, b = inputs[-2], inputs[-1]                                            # shot = 8 ; b = 32
@@ -624,20 +625,29 @@ class InCTRL(nn.Module):
         del Fp_list_n
         del am_fp
         del s, img, normal_image
-        pos_tokens = inputs[2].cuda()  # pos_tokens -> (32*154, 77)
-        neg_tokens = inputs[3].cuda()  # neg_tokens -> (32*88, 77)
+
+
+        text_features_list = []
         start = time.process_time()
-        pos_features = self.encode_text(pos_tokens)  # pos_features -> (32*154, 640)
-        neg_features = self.encode_text(neg_tokens)  # neg_features -> (32*88, 640)
+        for i in range(b):
+            if types[i] in self.textEmbedding_cache:
+                text_features = self.textEmbedding_cache[types[i]]
+            else:   
+                pos_tokens = inputs[2][i].cuda()  # pos_tokens -> (154, 77)
+                neg_tokens = inputs[3][i].cuda()  # neg_tokens -> (88, 77)
+                pos_features = self.encode_text(pos_tokens)  # pos_features -> (154, 640)
+                neg_features = self.encode_text(neg_tokens)  # neg_features -> (88, 640)
+                pos_features = torch.mean(pos_features, dim=0, keepdim=True)  # pos_features -> (1, 640)
+                neg_features = torch.mean(neg_features, dim=0, keepdim=True)  # neg_features -> (1, 640)
+                pos_features = pos_features / pos_features.norm(dim=-1, keepdim=True)
+                neg_features = neg_features / neg_features.norm(dim=-1, keepdim=True)
+                text_features = torch.cat([pos_features, neg_features], dim=0)                # text_features -> (2, 640)
+                self.textEmbedding_cache[types[i]] = text_features
+            text_features_list.append(text_features)
         print("Time taken by text encoder : ",time.process_time()-start)
-        pos_features = pos_features.reshape(b, -1, 640)
-        neg_features = neg_features.reshape(b, -1, 640)
-        pos_features = torch.mean(pos_features, dim=1, keepdim=True)  # pos_features -> (32, 1, 640)
-        neg_features = torch.mean(neg_features, dim=1, keepdim=True)  # neg_features -> (32, 1, 640)
-        pos_features = pos_features / pos_features.norm(dim=-1, keepdim=True)
-        neg_features = neg_features / neg_features.norm(dim=-1, keepdim=True)
-        text_features = torch.cat([pos_features, neg_features], dim=1)                # text_features -> (32, 2, 640)
-        scores = (100 * image_feature.unsqueeze(1) @ text_features.transpose(-1, -2)).softmax(dim=-1)  # scores -> (32, 1, 2)
+
+        text_features_list = torch.stack(text_features_list, dim=0)                           # text_features_list -> (32, 2, 640)
+        scores = (100 * image_feature.unsqueeze(1) @ text_features_list.transpose(-1, -2)).softmax(dim=-1)  # scores -> (32, 1, 2)
         text_score = scores[:, 0, 1]  # text_scores -> (32)
 
 
