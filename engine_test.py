@@ -24,7 +24,7 @@ from open_clip.utils.env import checkpoint_pathmgr as pathmgr
 from PIL import Image
 from tqdm import tqdm
 import progressbar
-from image_display import display_image
+from image_display import display_image, create_prediction_image
 import seaborn as sns
 
 logger = logging.get_logger(__name__)
@@ -61,6 +61,7 @@ def eval_epoch(val_loader, model, cfg, tokenizer, normal_list, mode=None):
     total_iterations = len(val_loader)
     progress_bar = progressbar.ProgressBar(max_value=total_iterations, prefix="Validation")
     for cur_iter, (inputs, types, labels) in enumerate(val_loader):
+        print("Entered the iteration loop")
         # print("Validation iteration : ", cur_iter, f"/{len(val_loader)}")
         # if cur_iter<=-1: continue
         if cfg.NUM_GPUS:
@@ -79,7 +80,8 @@ def eval_epoch(val_loader, model, cfg, tokenizer, normal_list, mode=None):
 
         total_pred = total_pred.cpu().numpy() 
         total_label = total_label.cpu().numpy()
-
+        
+        # create_prediction_visualization(total_label, total_pred)
         print("Predict " + mode + " set: ")
         try:
             total_roc, total_pr = aucPerformance(total_pred, total_label)
@@ -87,9 +89,9 @@ def eval_epoch(val_loader, model, cfg, tokenizer, normal_list, mode=None):
             pass
         total_pred = torch.tensor(total_pred).cuda()
         total_label = torch.tensor(total_label).cuda()
+        print("Exited the iteration loop")
     # break
-
-
+    create_prediction_image(total_label, total_pred)
     return total_roc
 
 def aucPerformance(mse, labels, prt=True):

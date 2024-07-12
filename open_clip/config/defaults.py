@@ -109,7 +109,7 @@ _C.TEST.BATCH_SIZE = 32
 
 # Path to the checkpoint to load the initial weight.
 # _C.TEST.CHECKPOINT_FILE_PATH = "sftp://medical@172.18.43.23/home/medical/Anomaly_Project/InCTRL/checkpoints/checkpoints/4/checkpoint.pyth"
-_C.TEST.CHECKPOINT_FILE_PATH = "/home/medical/Anomaly_Project/InCTRL/ORIGINALcheckpoints/checkpoints/8/checkpoint.pyth"                                 # check
+_C.TEST.CHECKPOINT_FILE_PATH = "/home/medical/Anomaly_Project/InCTRL/NEWORIGINALcheckpoints/checkpoints/8/checkpoint.pyth"                                 # check
 # _C.TEST.CHECKPOINT_FILE_PATH = "/home/medical/Anomaly_Project/InCTRL/TEMPcheckpoints/checkpoints/8/checkpoint.pyth"                                 # check
 # _C.TEST.CHECKPOINT_FILE_PATH = "/home/medical/Anomaly_Project/InCTRL/TEMP2checkpoints/checkpoints/8/checkpoint.pyth"                                 # check
 # _C.TEST.CHECKPOINT_FILE_PATH = "/home/medical/Anomaly_Project/InCTRL/tmp/checkpoints/checkpoint.pt"                                 # check

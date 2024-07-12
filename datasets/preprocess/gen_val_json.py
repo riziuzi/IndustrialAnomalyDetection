@@ -16,10 +16,10 @@ def get_args_parser(objects_name):
     parser.add_argument('--list_dataset_name', type=list, default=objects_name)
     return parser.parse_args()
 
-def list_objects(args):
+def list_objects(args, dir):
     image_dir = os.path.join(args.dataset_dir, args.dataset_name)
-    save_path_normal = os.path.join(args.output_dir, args.dataset_name+"_val_normal.json")
-    save_path_outlier = os.path.join(args.output_dir, args.dataset_name + "_val_outlier.json")
+    save_path_normal = os.path.join(args.output_dir,dir, args.dataset_name+"_val_normal.json")
+    save_path_outlier = os.path.join(args.output_dir, dir,args.dataset_name + "_val_outlier.json")
     print("Normal Path -> ",save_path_normal, "Outlier Path -> ",save_path_outlier)
     normal_data = list()
     normal_output_dict = list()
@@ -81,7 +81,8 @@ if __name__ == "__main__":
             for obj in args.list_dataset_name:
                 # if(obj=='brainmri'):
                 args.dataset_name = obj
-                list_objects(args)
+                args.output_dir
+                list_objects(args, directory.split("/")[-2])
         else:
             print("Object must be given in list !")
 

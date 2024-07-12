@@ -124,7 +124,7 @@ class IC_dataset(VisionDataset):
         image_list = list()
         image_list.append(image)
         for i in range(len(normal_index)):
-            assert normal_index[i]['type'] == sample_type
+            assert normal_index[i]['type'] == sample_type, "types not matched"
             n_img = self._load_image(normal_index[i]['image_path'])
             n_img = cur_transforms(n_img)
             image_list.append(n_img)

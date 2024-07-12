@@ -23,6 +23,7 @@ import argparse
 from functools import partial
 from open_clip.utils.env import checkpoint_pathmgr as pathmgr
 
+import time
 from .hf_model import HFTextEncoder
 from .modified_resnet import ModifiedResNet
 from .timm_model import TimmModel
@@ -596,6 +597,7 @@ class InCTRL(nn.Module):
         text_score = []                                                                         # 
         max_diff_score = []
         patch_ref_map = []
+        start = time.process_time()
         for i in range(len(token)):                                         # 32 iterations
             Fp = Fp_list[i, :, :, :]                                                            # Fp -> (3, 225, 896)             
             Fp_n = Fp_list_n[i, :, :, :]                                                        # Fp_n -> (3, 225*8=1800, 896)
@@ -617,7 +619,7 @@ class InCTRL(nn.Module):
             Fp_map = torch.stack(Fp_map)                                                        # Fp_map -> (3, 225, 1)
             Fp_map = torch.mean(Fp_map.squeeze(2), dim=0)                                      # Fp_map -> (225)
             # blockPrint()
-            self.peek_localization(Fp_map, img[i])
+            # self.peek_localization(Fp_map, img[i])
             # enablePrint()
             patch_ref_map.append(Fp_map)                                                        # patch_ref_map (finally) -> (32, 225) ?
             score = Fp_map.max(dim=0).values                                                    # score -> (1) (like: 0.1792)
@@ -645,7 +647,7 @@ class InCTRL(nn.Module):
             score = (100 * image_feature @ text_features.T).softmax(dim=-1)                     # score -> (2,1) (like:[.8761, .1239])
             tmp = score[0, 1]                                                                   # tmp -(1) -> (like : .1239) > it takes the negative feature (anomaly score)
             text_score.append(tmp)                                                              # text_score (final) -> (32) -> (like: [.1239, ...])
-
+        print("Encoding Time (largest overhead) -> : ",time.process_time()-start)
         text_score = torch.stack(text_score).unsqueeze(1)                                       # text_score -> (32,1)      
         img_ref_score = self.diff_head_ref.forward(token_ref)                                   # img_ref_score -> (32, 1)
         patch_ref_map = torch.stack(patch_ref_map)                                              # patch_ref_map -> (32, 225)
