@@ -598,6 +598,7 @@ class InCTRL(nn.Module):
         max_diff_score = []
         patch_ref_map = []
         start = time.process_time()
+        delete_list = []
         for i in range(len(token)):                                         # 32 iterations
             Fp = Fp_list[i, :, :, :]                                                            # Fp -> (3, 225, 896)             
             Fp_n = Fp_list_n[i, :, :, :]                                                        # Fp_n -> (3, 225*8=1800, 896)
@@ -644,10 +645,12 @@ class InCTRL(nn.Module):
             pos_features = pos_features / pos_features.norm(dim=-1, keepdim=True)               # pos_features -> (1, 640)
             neg_features = neg_features / neg_features.norm(dim=-1, keepdim=True)               # neg_features -> (1, 640)
             text_features = torch.cat([pos_features, neg_features], dim=0)                      # text_features -> (2,640)
+            delete_list.append(text_features)
             score = (100 * image_feature @ text_features.T).softmax(dim=-1)                     # score -> (2,1) (like:[.8761, .1239])
             tmp = score[0, 1]                                                                   # tmp -(1) -> (like : .1239) > it takes the negative feature (anomaly score)
             text_score.append(tmp)                                                              # text_score (final) -> (32) -> (like: [.1239, ...])
         print("Encoding Time (largest overhead) -> : ",time.process_time()-start)
+        # delete_list = [i.cpu().flatten(). for i in delete_list]
         text_score = torch.stack(text_score).unsqueeze(1)                                       # text_score -> (32,1)      
         img_ref_score = self.diff_head_ref.forward(token_ref)                                   # img_ref_score -> (32, 1)
         patch_ref_map = torch.stack(patch_ref_map)                                              # patch_ref_map -> (32, 225)
