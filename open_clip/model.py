@@ -626,10 +626,10 @@ class InCTRL(nn.Module):
 
 
             # zero shot prep
-            obj_type = types[i]                                                                  # text -> list of strings (32) (like: 'Visa_pcb2'); obj_type -> string (like: 'Visa_pcb2')
-            normal_texts, anomaly_texts = get_texts(obj_type.replace('_', " "))                 # normal_texts -> list of strings (154) (like: 'a photo of the perfect Visa pcb2.','a dark photo of a Visa pcb2 without flaw.','a blurry photo of a Visa pcb2 without flaw.','a cropped photo of a Visa pcb2 without flaw.','a photo of a small Visa pcb2.','a photo of a large Visa pcb2.','a jpeg corrupted photo of a Visa pcb2.',); anomaly_texts -> list of strings (88) (like: 'a photo of a damaged Visa pcb2 for anomaly detection.','a jpeg corrupted photo of a Visa pcb2 with damage.','a blurry photo of a Visa pcb2 with defect.','a photo of the Visa pcb2 with defect for visual inspection.')
-            _pos_features = tokenizer(normal_texts)                                   # pos_features -> (154, 77)
-            _neg_features = tokenizer(anomaly_texts)
+            # obj_type = types[i]                                                                  # text -> list of strings (32) (like: 'Visa_pcb2'); obj_type -> string (like: 'Visa_pcb2')
+            # normal_texts, anomaly_texts = get_texts(obj_type.replace('_', " "))                 # normal_texts -> list of strings (154) (like: 'a photo of the perfect Visa pcb2.','a dark photo of a Visa pcb2 without flaw.','a blurry photo of a Visa pcb2 without flaw.','a cropped photo of a Visa pcb2 without flaw.','a photo of a small Visa pcb2.','a photo of a large Visa pcb2.','a jpeg corrupted photo of a Visa pcb2.',); anomaly_texts -> list of strings (88) (like: 'a photo of a damaged Visa pcb2 for anomaly detection.','a jpeg corrupted photo of a Visa pcb2 with damage.','a blurry photo of a Visa pcb2 with defect.','a photo of the Visa pcb2 with defect for visual inspection.')
+            # _pos_features = tokenizer(normal_texts)                                   # pos_features -> (154, 77)
+            # _neg_features = tokenizer(anomaly_texts)
             text_features = None
             if types[i] in self.textEmbedding_cache:
                 text_features = self.textEmbedding_cache[types[i]]
@@ -638,18 +638,25 @@ class InCTRL(nn.Module):
                 neg_tokens = inputs[3][i].cuda()  # neg_tokens -> (88, 77)
                 pos_features = self.encode_text(pos_tokens)  # pos_features -> (154, 640)
                 neg_features = self.encode_text(neg_tokens)  # neg_features -> (88, 640)
+                pos_features = pos_features / pos_features.norm(dim=-1, keepdim=True)               # pos_features -> (154, 640)
+                neg_features = neg_features / neg_features.norm(dim=-1, keepdim=True)               # neg_features -> (88, 640)
                 pos_features = torch.mean(pos_features, dim=0, keepdim=True)  # pos_features -> (1, 640)
                 neg_features = torch.mean(neg_features, dim=0, keepdim=True)  # neg_features -> (1, 640)
                 pos_features = pos_features / pos_features.norm(dim=-1, keepdim=True)
                 neg_features = neg_features / neg_features.norm(dim=-1, keepdim=True)
                 text_features = torch.cat([pos_features, neg_features], dim=0)                # text_features -> (2, 640)
                 self.textEmbedding_cache[types[i]] = text_features
-            text_features_list.append(text_features)
+            
 
             image_feature = token[i]                                                            # image_feature -> (640)
             image_feature = image_feature.unsqueeze(0)                                          # image_feature -> (1, 640)
             image_feature = image_feature / image_feature.norm(dim=-1, keepdim=True)            # image_feature -> (1, 640)
-            image_features_list.append(image_feature)
+            
+            score = (100 * image_feature @ text_features.T).softmax(dim=-1)                     # score -> (2,1) (like:[.8761, .1239])
+            tmp = score[0, 1] 
+            text_score.append(tmp)      
+            
+            # text_features_list.append(text_features)
 
 
         
@@ -657,10 +664,10 @@ class InCTRL(nn.Module):
                                           # text_score -> (32,1)      
         
         
-        text_features_list = torch.stack(text_features_list, dim=0)    
-        image_features_list = torch.stack(image_features_list, dim=0)    
-        scores = (100 * image_feature.unsqueeze(1) @ text_features_list.transpose(-1, -2)).softmax(dim=-1)  # scores -> (32, 1, 2)
-        text_score = scores[:, :, 1]                                    # text_scores -> (32,1)
+        # text_features_list = torch.stack(text_features_list, dim=0)    
+        # image_features_list = torch.stack(image_features_list, dim=0)    
+        # scores = (100 * image_feature.unsqueeze(1) @ text_features_list.transpose(-1, -2)).softmax(dim=-1)  # scores -> (32, 1, 2)
+        text_score = torch.stack(text_score).unsqueeze(1)                                         # text_scores -> (32,1)
 
         
         

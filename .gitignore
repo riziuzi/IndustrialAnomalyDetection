@@ -16,6 +16,9 @@ output_image.png
 NEWORIGINALcheckpoints
 test_outputs
 test_outputs_Optimized
+test_outputs_Optimized_old
+
+
 ## I dont know if below ones are going to be useful or not in the directory of datasets
 
 aitex
