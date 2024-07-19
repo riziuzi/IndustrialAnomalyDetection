@@ -76,7 +76,7 @@ def eval_epoch(val_loader, model, cfg, tokenizer, normal_list, mode=None):
         # peek_image(inputs[0][-2])
         # peek_image(inputs[0][0])
         # labels.flip(0)
-        final_score, img_ref_score, text_score, hl_score, max_diff_score = model(tokenizer, inputs, types, normal_list)
+        final_score, img_ref_score, text_score, hl_score, max_diff_score = model(inputs, types, cur_iter)
 
         total_final_score = torch.cat((total_final_score, final_score), 0)
         total_img_ref_score = torch.cat((total_img_ref_score,img_ref_score),0)
@@ -108,7 +108,7 @@ def eval_epoch(val_loader, model, cfg, tokenizer, normal_list, mode=None):
         'total_hl_score' : total_hl_score.cpu().numpy(),
         'total_max_diff_score': total_max_diff_score.cpu().numpy()
     }
-    create_prediction_table(total_label.cpu().numpy(),y_preds_dict, output_path=f"./test_outputs/{types[0]}.png")
+    create_prediction_table(total_label.cpu().numpy(),y_preds_dict, output_dir = "./test_outputs_Optimized",filename=f"{'_'.join(set(types))}.png")
     return total_roc
 
 

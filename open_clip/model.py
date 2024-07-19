@@ -506,6 +506,7 @@ class InCTRL(nn.Module):
         self.adapter = Adapter(640, 4)
         self.diff_head = TransformerBasicHead(225, 1)
         self.diff_head_ref = TransformerBasicHead(640, 1)
+        self.textEmbedding_cache = {}
 
         for p in self.visual.parameters():
             p.requires_grad = False
@@ -558,22 +559,14 @@ class InCTRL(nn.Module):
             plt.close()
 
 
-    def forward(self, tokenizer, image: Optional[torch.Tensor] = None, text: Optional[torch.Tensor] = None, normal_list = None):
-        if normal_list == None:
-            img = image[0].cuda(non_blocking=True)                                              # image -> (9,32,3,240,240) ; img -> (32,3,240,240)
-            normal_image = image[1:]                                                    
-            normal_image = torch.stack(normal_image)                                            # normal_image -> (8,32,3,240,240)
-            shot, b, _, _, _ = normal_image.shape                                               # shot = 8 ; b = 32
-            normal_image = normal_image.reshape(-1, 3, 240, 240).cuda(non_blocking=True)        # normal_image -> (8*32=256, 3,240,240)
-        else:
-            img = image[0].cuda(non_blocking=True)
-            normal_image = normal_list
-            normal_image = torch.stack(normal_image)
-            normal_image = normal_image.unsqueeze(1)
-            b = len(img)
-            normal_image = normal_image.repeat(1, b, 1, 1, 1)
-            shot, _, _, _, _ = normal_image.shape
-            normal_image = normal_image.reshape(-1, 3, 240, 240).cuda(non_blocking=True)
+    def forward(self, inputs: Optional[torch.Tensor] = None, types: Optional[torch.Tensor] = None, ind = None):
+        start1 = time.process_time()
+        
+        img = inputs[0].cuda(non_blocking=True)
+        shot, b = inputs[-2], inputs[-1]
+        normal_image = inputs[1].cuda(non_blocking=True)                                        # normal_image -> (8*32=256, 3,240,240)
+
+
 
         token, Fp_list, Fp = self.encode_image(img, normalize=False)                            # token, Fp_list, Fp -> (32,640), (3, 32, 226, 896), (32, 226, 896) -> Fp not used ? (12th layer)
         token_n, Fp_list_n, Fp_n = self.encode_image(normal_image, normalize=False)             # token_n, Fp_list_n, Fp_n -> (256,640), (3,8*32=256,226,896), (8*32=256, 226, 896) -> Fp_n not used ? (12th layer)
@@ -594,10 +587,14 @@ class InCTRL(nn.Module):
         token_n = torch.mean(token_n, dim=1)                                                    # token_n -> (32, 640)
         token_ref = token_n - token_ad                                      # In context image level residual features # token_ref -> (32, 640)
 
+        
+        
+        image_features_list = []
         text_score = []                                                                         # 
         max_diff_score = []
         patch_ref_map = []
         start = time.process_time()
+        text_features_list = []
         for i in range(len(token)):                                         # 32 iterations
             Fp = Fp_list[i, :, :, :]                                                            # Fp -> (3, 225, 896)             
             Fp_n = Fp_list_n[i, :, :, :]                                                        # Fp_n -> (3, 225*8=1800, 896)
@@ -618,37 +615,46 @@ class InCTRL(nn.Module):
                 Fp_map.append(am_fp)                                                            # Fp_map (finally) -> (3, 225, 1)
             Fp_map = torch.stack(Fp_map)                                                        # Fp_map -> (3, 225, 1)
             Fp_map = torch.mean(Fp_map.squeeze(2), dim=0)                                      # Fp_map -> (225)
-            # blockPrint()
-            # self.peek_localization(Fp_map, img[i])
-            # enablePrint()
             patch_ref_map.append(Fp_map)                                                        # patch_ref_map (finally) -> (32, 225) ?
             score = Fp_map.max(dim=0).values                                                    # score -> (1) (like: 0.1792)
             max_diff_score.append(score)                                                        # max_diff_score (finally) -> (32, 1) ?
             # print("score: ",score)
 
-            # zero shot
+
+            # zero shot prep
+            if types[i] in self.textEmbedding_cache:
+                text_features = self.textEmbedding_cache[types[i]]
+            else:   
+                pos_tokens = inputs[2][i].cuda()  # pos_tokens -> (154, 77)
+                neg_tokens = inputs[3][i].cuda()  # neg_tokens -> (88, 77)
+                pos_features = self.encode_text(pos_tokens)  # pos_features -> (154, 640)
+                neg_features = self.encode_text(neg_tokens)  # neg_features -> (88, 640)
+                pos_features = torch.mean(pos_features, dim=0, keepdim=True)  # pos_features -> (1, 640)
+                neg_features = torch.mean(neg_features, dim=0, keepdim=True)  # neg_features -> (1, 640)
+                pos_features = pos_features / pos_features.norm(dim=-1, keepdim=True)
+                neg_features = neg_features / neg_features.norm(dim=-1, keepdim=True)
+                text_features = torch.cat([pos_features, neg_features], dim=0)                # text_features -> (2, 640)
+                self.textEmbedding_cache[types[i]] = text_features
+            text_features_list.append(text_features)
+
             image_feature = token[i]                                                            # image_feature -> (640)
             image_feature = image_feature.unsqueeze(0)                                          # image_feature -> (1, 640)
             image_feature = image_feature / image_feature.norm(dim=-1, keepdim=True)            # image_feature -> (1, 640)
+            image_features_list.append(image_feature)
 
-            obj_type = text[i]                                                                  # text -> list of strings (32) (like: 'Visa_pcb2'); obj_type -> string (like: 'Visa_pcb2')
-            normal_texts, anomaly_texts = get_texts(obj_type.replace('_', " "))                 # normal_texts -> list of strings (154) (like: 'a photo of the perfect Visa pcb2.','a dark photo of a Visa pcb2 without flaw.','a blurry photo of a Visa pcb2 without flaw.','a cropped photo of a Visa pcb2 without flaw.','a photo of a small Visa pcb2.','a photo of a large Visa pcb2.','a jpeg corrupted photo of a Visa pcb2.',); anomaly_texts -> list of strings (88) (like: 'a photo of a damaged Visa pcb2 for anomaly detection.','a jpeg corrupted photo of a Visa pcb2 with damage.','a blurry photo of a Visa pcb2 with defect.','a photo of the Visa pcb2 with defect for visual inspection.')
-            pos_features = tokenizer(normal_texts).cuda()                                       # pos_features -> (154, 77)
-            neg_features = tokenizer(anomaly_texts).cuda()                                      # neg_features -> (88, 77)
-            pos_features = self.encode_text(pos_features)                                       # pos_features -> (154, 640)
-            neg_features = self.encode_text(neg_features)                                       # neg_features -> (88, 640)
-            pos_features = pos_features / pos_features.norm(dim=-1, keepdim=True)               # pos_features -> (154, 640)
-            neg_features = neg_features / neg_features.norm(dim=-1, keepdim=True)               # neg_features -> (88, 640)
-            pos_features = torch.mean(pos_features, dim=0, keepdim=True)                        # pos_features -> (1, 640)
-            neg_features = torch.mean(neg_features, dim=0, keepdim=True)                        # neg_features -> (1, 640)
-            pos_features = pos_features / pos_features.norm(dim=-1, keepdim=True)               # pos_features -> (1, 640)
-            neg_features = neg_features / neg_features.norm(dim=-1, keepdim=True)               # neg_features -> (1, 640)
-            text_features = torch.cat([pos_features, neg_features], dim=0)                      # text_features -> (2,640)
-            score = (100 * image_feature @ text_features.T).softmax(dim=-1)                     # score -> (2,1) (like:[.8761, .1239])
-            tmp = score[0, 1]                                                                   # tmp -(1) -> (like : .1239) > it takes the negative feature (anomaly score)
-            text_score.append(tmp)                                                              # text_score (final) -> (32) -> (like: [.1239, ...])
+
+        
         print("Encoding Time (largest overhead) -> : ",time.process_time()-start)
-        text_score = torch.stack(text_score).unsqueeze(1)                                       # text_score -> (32,1)      
+                                          # text_score -> (32,1)      
+        
+        
+        text_features_list = torch.stack(text_features_list, dim=0)    
+        image_features_list = torch.stack(image_features_list, dim=0)    
+        scores = (100 * image_feature.unsqueeze(1) @ text_features_list.transpose(-1, -2)).softmax(dim=-1)  # scores -> (32, 1, 2)
+        text_score = scores[:, :, 1]                                    # text_scores -> (32,1)
+
+        
+        
         img_ref_score = self.diff_head_ref.forward(token_ref)                                   # img_ref_score -> (32, 1)
         patch_ref_map = torch.stack(patch_ref_map)                                              # patch_ref_map -> (32, 225)
         # save_images_and_patches(img, patch_ref_map)
@@ -662,6 +668,7 @@ class InCTRL(nn.Module):
         img_ref_score = img_ref_score.squeeze(1)                                                # img_ref_score -> (32)
         # print(f"final_score: {final_score}, img_ref_score: {img_ref_score}")
         # return final_score, img_ref_score
+        print("Time taken by an iteration : ",time.process_time()-start1, " with batch size : ", b)
         return final_score, img_ref_score, text_score.squeeze(1), hl_score, fg_score
 
 class CustomTextCLIP(nn.Module):

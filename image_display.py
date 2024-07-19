@@ -8,6 +8,7 @@ import matplotlib.colors as mcolors
 from sklearn.metrics import confusion_matrix, roc_auc_score, precision_recall_curve, auc, roc_curve
 from matplotlib.patches import Patch
 import numpy as np
+import os
 import matplotlib.pyplot as plt
 import matplotlib.colors as mcolors
 from sklearn.metrics import confusion_matrix, precision_recall_curve, auc, roc_curve
@@ -165,7 +166,7 @@ def create_prediction_image(y_true, y_pred, output_path='create_prediction_image
     plt.savefig(output_path, bbox_inches='tight')
     plt.close()
 
-def create_prediction_table(y_true, y_preds_dict, output_path='prediction_analysis.png', r=3):
+def create_prediction_table(y_true, y_preds_dict, output_dir = "./", filename='prediction_analysis.png', r=3):
     """
     Analyzes multiple prediction arrays against the ground truth labels.
     
@@ -217,7 +218,7 @@ def create_prediction_table(y_true, y_preds_dict, output_path='prediction_analys
 
     # Grid
     fig = plt.figure(figsize=(30, 20), dpi=300)
-    fig.suptitle(output_path, fontsize=24, fontweight='bold')
+    fig.suptitle(filename, fontsize=24, fontweight='bold')
     gs = plt.GridSpec( len(y_preds_dict) + 1, 5, figure=fig, height_ratios=  [2] * len(y_preds_dict) + [6], width_ratios=[3,1, 1, 1,1], wspace=0.3 ,hspace=1)
     ax_table = fig.add_subplot(gs[:, 0])
     ax_cms = [fig.add_subplot(gs[i, 1]) for i in range(len(y_preds_dict))]
@@ -310,8 +311,9 @@ def create_prediction_table(y_true, y_preds_dict, output_path='prediction_analys
 
 
     # Save the image
-    plt.savefig(output_path, bbox_inches='tight')
-    print(f'{output_path} <- Saved !')
+    os.makedirs(output_dir, exist_ok=True)
+    plt.savefig(os.path.join(output_dir,filename), bbox_inches='tight')
+    print(f'{os.path.join(output_dir,filename)} <- Saved !')
     plt.close()
 
 
