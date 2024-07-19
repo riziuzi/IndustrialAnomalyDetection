@@ -24,7 +24,7 @@ from open_clip.utils.env import checkpoint_pathmgr as pathmgr
 from PIL import Image
 from tqdm import tqdm
 import progressbar
-from image_display import display_image, create_prediction_image
+from image_display import display_image, create_prediction_image, create_prediction_table
 import seaborn as sns
 
 logger = logging.get_logger(__name__)
@@ -57,7 +57,11 @@ def eval_epoch(val_loader, model, cfg, tokenizer, normal_list, mode=None):
     model.eval()
 
     total_label = torch.Tensor([]).cuda()
-    total_pred = torch.Tensor([]).cuda()
+    total_final_score = torch.Tensor([]).cuda()
+    total_img_ref_score = torch.Tensor([]).cuda()
+    total_text_score = torch.Tensor([]).cuda()
+    total_hl_score = torch.Tensor([]).cuda()
+    total_max_diff_score = torch.Tensor([]).cuda()
     total_iterations = len(val_loader)
     progress_bar = progressbar.ProgressBar(max_value=total_iterations, prefix="Validation")
     for cur_iter, (inputs, types, labels) in enumerate(val_loader):
@@ -72,27 +76,42 @@ def eval_epoch(val_loader, model, cfg, tokenizer, normal_list, mode=None):
         # peek_image(inputs[0][-2])
         # peek_image(inputs[0][0])
         # labels.flip(0)
-        preds, _ = model(tokenizer, inputs, types, normal_list)
+        final_score, img_ref_score, text_score, hl_score, max_diff_score = model(tokenizer, inputs, types, normal_list)
 
-        total_pred = torch.cat((total_pred, preds), 0)
-        total_label = torch.cat((total_label, labels), 0)
+        total_final_score = torch.cat((total_final_score, final_score), 0)
+        total_img_ref_score = torch.cat((total_img_ref_score,img_ref_score),0)
+        total_text_score = torch.cat((total_text_score,text_score),0)
+        total_hl_score = torch.cat((total_hl_score,hl_score),0)
+        total_max_diff_score = torch.cat((total_max_diff_score,max_diff_score), 0)
+
+        total_label = torch.cat((total_label,labels))
         # progress_bar.update(cur_iter + 1)
 
-        total_pred = total_pred.cpu().numpy() 
+        total_final_score = total_final_score.cpu().numpy() 
         total_label = total_label.cpu().numpy()
         
-        # create_prediction_visualization(total_label, total_pred)
+        # create_prediction_visualization(total_label, total_final_score)
         print("Predict " + mode + " set: ")
         try:
-            total_roc, total_pr = aucPerformance(total_pred, total_label)
+            total_roc, total_pr = aucPerformance(total_final_score, total_label)
         except:
+            print("Skipped AUC calculation \n");
             pass
-        total_pred = torch.tensor(total_pred).cuda()
+        total_final_score = torch.tensor(total_final_score).cuda()
         total_label = torch.tensor(total_label).cuda()
         print("Exited the iteration loop")
     # break
-    create_prediction_image(total_label, total_pred)
+    y_preds_dict = {
+        'total_final_score': total_final_score.cpu().numpy(),
+        'total_img_ref_score': total_img_ref_score.cpu().numpy(),
+        'total_text_score': total_text_score.cpu().numpy(),
+        'total_hl_score' : total_hl_score.cpu().numpy(),
+        'total_max_diff_score': total_max_diff_score.cpu().numpy()
+    }
+    create_prediction_table(total_label.cpu().numpy(),y_preds_dict, output_path=f"./test_outputs/{types[0]}.png")
     return total_roc
+
+
 
 def aucPerformance(mse, labels, prt=True):
     roc_auc = roc_auc_score(labels, mse)

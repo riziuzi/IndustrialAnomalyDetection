@@ -1,9 +1,7 @@
 data
 delete.ipynb
 delete.py
-TEMPcheckpoints
-TEMP2checkpoints
-ORIGINALcheckpoints
+*.pyth
 AD_json
 AD_json_train
 __pycache__
@@ -16,6 +14,7 @@ OUTPUT_images
 TEST
 output_image.png
 NEWORIGINALcheckpoints
+test_outputs
 
 ## I dont know if below ones are going to be useful or not in the directory of datasets
 

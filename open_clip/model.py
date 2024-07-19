@@ -661,7 +661,8 @@ class InCTRL(nn.Module):
 
         img_ref_score = img_ref_score.squeeze(1)                                                # img_ref_score -> (32)
         # print(f"final_score: {final_score}, img_ref_score: {img_ref_score}")
-        return final_score, img_ref_score
+        # return final_score, img_ref_score
+        return final_score, img_ref_score, text_score.squeeze(1), hl_score, fg_score
 
 class CustomTextCLIP(nn.Module):
     output_dict: torch.jit.Final[bool]
