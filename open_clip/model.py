@@ -559,7 +559,7 @@ class InCTRL(nn.Module):
             plt.close()
 
 
-    def forward(self, inputs: Optional[torch.Tensor] = None, types: Optional[torch.Tensor] = None, ind = None):
+    def forward(self, inputs: Optional[torch.Tensor] = None, types: Optional[torch.Tensor] = None, ind = None, tokenizer=None):
         start1 = time.process_time()
         
         img = inputs[0].cuda(non_blocking=True)
@@ -621,7 +621,15 @@ class InCTRL(nn.Module):
             # print("score: ",score)
 
 
+
+
+
+
             # zero shot prep
+            obj_type = types[i]                                                                  # text -> list of strings (32) (like: 'Visa_pcb2'); obj_type -> string (like: 'Visa_pcb2')
+            normal_texts, anomaly_texts = get_texts(obj_type.replace('_', " "))                 # normal_texts -> list of strings (154) (like: 'a photo of the perfect Visa pcb2.','a dark photo of a Visa pcb2 without flaw.','a blurry photo of a Visa pcb2 without flaw.','a cropped photo of a Visa pcb2 without flaw.','a photo of a small Visa pcb2.','a photo of a large Visa pcb2.','a jpeg corrupted photo of a Visa pcb2.',); anomaly_texts -> list of strings (88) (like: 'a photo of a damaged Visa pcb2 for anomaly detection.','a jpeg corrupted photo of a Visa pcb2 with damage.','a blurry photo of a Visa pcb2 with defect.','a photo of the Visa pcb2 with defect for visual inspection.')
+            _pos_features = tokenizer(normal_texts)                                   # pos_features -> (154, 77)
+            _neg_features = tokenizer(anomaly_texts)
             text_features = None
             if types[i] in self.textEmbedding_cache:
                 text_features = self.textEmbedding_cache[types[i]]
