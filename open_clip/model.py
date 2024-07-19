@@ -622,6 +622,7 @@ class InCTRL(nn.Module):
 
 
             # zero shot prep
+            text_features = None
             if types[i] in self.textEmbedding_cache:
                 text_features = self.textEmbedding_cache[types[i]]
             else:   
