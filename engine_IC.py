@@ -64,6 +64,8 @@ def train_epoch(
     pbar = progressbar.ProgressBar(max_value=len(train_loader), widgets=widgets)
 
     all_loss = 0.0
+    pbar.update(0)
+    error_list = []
     for cur_iter, (inputs, types, labels) in enumerate(train_loader):
 
         if cfg.NUM_GPUS:
@@ -89,11 +91,13 @@ def train_epoch(
 
         # dist.all_reduce(loss)
         loss_value = loss.item()
+        error_list.append(loss_value)
         all_loss = all_loss + loss_value
         pbar.update(cur_iter + 1)
 
     all_loss = all_loss / (cur_iter + 1)
     print("train_loss: ", all_loss)
+    print("loss value -> ",error_list)
     return all_loss
 
 
@@ -205,7 +209,9 @@ def train(cfg):
     # checkpoint_path = "./vit_b_16_plus_240-laion400m_e32-699c4b84.pt"
     # checkpoint_dir = "./tmp/checkpoints/"
     # checkpoint_dir = "/home/medical/Anomaly_Project/InCTRL/TEMP2checkpoints/checkpoints/8/"
-    checkpoint_dir = "/home/medical/Anomaly_Project/InCTRL/checkpoint_optimized/checkpoints/8/"
+    # checkpoint_dir = "/home/medical/Anomaly_Project/InCTRL/checkpoint_optimized/checkpoints/8/"
+    checkpoint_dir = "/home/medical/Anomaly_Project/InCTRL/NEWORIGINALcheckpoints/checkpoints/8/"
+    # checkpoint_dir = "/home/medical/Anomaly_Project/InCTRL/andbandsand/checkpoints/8/"
     start_epoch = load_latest_checkpoint(model, checkpoint_dir)
     start_epoch = 0                                                         # since for each training dataset, model should train from start
     # if os.path.exists(checkpoint_path):
@@ -272,7 +278,7 @@ def train(cfg):
         # )
 
         
-        save_checkpoint(model, checkpoint_dir)
+        # save_checkpoint(model, checkpoint_dir)
         print(f"Time taken for epoch number {cur_epoch} -> {epoch_timer.avg_epoch_time():.2f}s in average and {epoch_timer.median_epoch_time():.2f}s in median.")
         print(f"epoch loss : {epoch_loss}")
         print("\n")
@@ -298,7 +304,7 @@ def save_checkpoint(model, path):
 
 
 def load_latest_checkpoint(model, checkpoint_dir):
-    # try:
+    try:
         # List all checkpoint files
         checkpoint_files = [f for f in os.listdir(checkpoint_dir) if f.endswith('.pyth') or f.endswith('.pt')]
         
@@ -329,8 +335,8 @@ def load_latest_checkpoint(model, checkpoint_dir):
         else:
             print("No valid checkpoint files found. Starting training from scratch.")
             return 0
-    # except:
-    #     print("State not loaded!")
+    except:
+        print("State not loaded!")
 
 
 def torch_summarize(model, show_weights=True, show_parameters=True):
