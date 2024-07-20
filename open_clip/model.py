@@ -559,7 +559,7 @@ class InCTRL(nn.Module):
             plt.close()
 
 
-    def forward(self, inputs: Optional[torch.Tensor] = None, types: Optional[torch.Tensor] = None, ind = None, tokenizer=None):
+    def forward(self, inputs: Optional[torch.Tensor] = None, types: Optional[torch.Tensor] = None, ind = None):
         start1 = time.process_time()
         
         img = inputs[0].cuda(non_blocking=True)
@@ -589,12 +589,12 @@ class InCTRL(nn.Module):
 
         
         
-        image_features_list = []
+        # image_features_list = []                                                                # Why vectorization result is giving wrong answer? (see my PLLF_optimized branch)
+        # text_features_list = []
         text_score = []                                                                         # 
         max_diff_score = []
         patch_ref_map = []
         start = time.process_time()
-        text_features_list = []
         for i in range(len(token)):                                         # 32 iterations
             Fp = Fp_list[i, :, :, :]                                                            # Fp -> (3, 225, 896)             
             Fp_n = Fp_list_n[i, :, :, :]                                                        # Fp_n -> (3, 225*8=1800, 896)
@@ -660,7 +660,7 @@ class InCTRL(nn.Module):
 
 
         
-        print("Encoding Time (largest overhead) -> : ",time.process_time()-start)
+        # print("Encoding Time (largest overhead) -> : ",time.process_time()-start)
                                           # text_score -> (32,1)      
         
         
@@ -683,9 +683,9 @@ class InCTRL(nn.Module):
 
         img_ref_score = img_ref_score.squeeze(1)                                                # img_ref_score -> (32)
         # print(f"final_score: {final_score}, img_ref_score: {img_ref_score}")
-        # return final_score, img_ref_score
-        print("Time taken by an iteration : ",time.process_time()-start1, " with batch size : ", b)
-        return final_score, img_ref_score, text_score.squeeze(1), hl_score, fg_score
+        # print("Time taken by an iteration : ",time.process_time()-start1, " with batch size : ", b)
+        return final_score, img_ref_score
+        # return final_score, img_ref_score, text_score.squeeze(1), hl_score, fg_score
 
 class CustomTextCLIP(nn.Module):
     output_dict: torch.jit.Final[bool]

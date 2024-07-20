@@ -16,7 +16,7 @@ from open_clip.config.defaults import assert_and_infer_cfg, get_cfg
 import pickle
 shot_number = 8
 
-def parse_args(obj):
+def parse_args(normal_outlier_list):
     """
     Parse the following arguments for a default parser.
     Args:
@@ -74,9 +74,9 @@ def parse_args(obj):
     #                     help='json path')
     # parser.add_argument('--outlier_json_path', default=['/home/medical/Anomaly_Project/InCTRL/AD_json_train_2/mvtec_anomaly_detection_outlier.json'], nargs='+', type=str,
     #                     help='json path')
-    parser.add_argument('--normal_json_path', default=[obj[0]], nargs='+', type=str,
+    parser.add_argument('--normal_json_path', default=normal_outlier_list[0], nargs='+', type=str,
                         help='json path')
-    parser.add_argument('--outlier_json_path', default=[obj[1]], nargs='+', type=str,
+    parser.add_argument('--outlier_json_path', default=normal_outlier_list[1], nargs='+', type=str,
                         help='json path')
     # parser.add_argument('--val_normal_json_path', default=['/home/medical/Anomaly_Project/InCTRL/AD_json/bottle_val_normal.json'], nargs='+', type=str,                                          # check
     #                     help='json path')
@@ -149,17 +149,17 @@ def load_config(args):
     return cfg
 
 
-def main(obj):
+def main(normal_outlier_list):
     """
     Main function to spawn the train and test process.
     """
-    args = parse_args(obj)
+    args = parse_args(normal_outlier_list)
     cfg = load_config(args)
     cfg = assert_and_infer_cfg(cfg)
 
     # Perform training.
     if cfg.TRAIN.ENABLE:
-       print("Training for : ", obj)
+       print("Training for : \nNormal: "+" | ".join([s.split("/")[-1] for s in normal_outlier_list[0]]) + "\n\nAbnormal: "+" | ".join([s.split("/")[-1] for s in normal_outlier_list[1]]))
        launch_job(cfg=cfg, init_method=args.init_method, func=train)
 
     # Perform testing.
@@ -176,7 +176,8 @@ def load_list_from_file(file_path):
 if __name__ == "__main__":
     print("\n")
     # file_path = "/home/medical/Anomaly_Project/pytorch-cutpaste/single_object_list_bottle.pkl"
-    file_path = "/home/medical/Anomaly_Project/pytorch-cutpaste/single_object_list_pcb2.pkl"
+    # file_path = "/home/medical/Anomaly_Project/pytorch-cutpaste/single_object_list_pcb2.pkl"
+    file_path = "/home/medical/Anomaly_Project/InCTRL/data/train_object_list.pkl"
     lst = load_list_from_file(file_path)
-    for obj in lst:
-        main(obj)
+    for normal_outlier_list in lst:
+        main(normal_outlier_list)

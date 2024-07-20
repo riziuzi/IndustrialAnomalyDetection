@@ -70,7 +70,7 @@ def train_epoch(
             labels = labels.cuda()
         
         
-        preds, preds2 = model(tokenizer, inputs, types, None)
+        preds, preds2 = model(inputs, types, cur_iter)
         loss_fun = BinaryFocalLoss()
         loss_fun = loss_fun.cuda()
 
@@ -205,7 +205,7 @@ def train(cfg):
     # checkpoint_path = "./vit_b_16_plus_240-laion400m_e32-699c4b84.pt"
     # checkpoint_dir = "./tmp/checkpoints/"
     # checkpoint_dir = "/home/medical/Anomaly_Project/InCTRL/TEMP2checkpoints/checkpoints/8/"
-    checkpoint_dir = "/home/medical/Anomaly_Project/InCTRL/ORIGINALcheckpoints/checkpoints/8/"
+    checkpoint_dir = "/home/medical/Anomaly_Project/InCTRL/checkpoint_optimized/checkpoints/8/"
     start_epoch = load_latest_checkpoint(model, checkpoint_dir)
     start_epoch = 0                                                         # since for each training dataset, model should train from start
     # if os.path.exists(checkpoint_path):
@@ -233,7 +233,7 @@ def train(cfg):
 
     print("Loading Train/Test Loaders ...")
     train_loader = loader.construct_loader(cfg, "train", transform)
-    test_loader = loader.construct_loader(cfg, "test", transform)
+    # test_loader = loader.construct_loader(cfg, "test", transform)
     print("Loading Complete!")
 
     tokenizer = open_clip.get_tokenizer('ViT-B-16-plus-240')
